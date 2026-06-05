@@ -140,6 +140,11 @@
     <button id="clearBtn" class="btn clear">CLEAR</button>
 
     <div class="ctl">
+      <label>✨ Starter Song</label>
+      <select id="presetSel"><option value="">— pick a vibe —</option></select>
+    </div>
+
+    <div class="ctl">
       <label>Tempo</label>
       <div class="row"><input id="bpm" type="range" min="20" max="300" value="120" style="width:90px"><span class="val" id="bpmVal">120</span></div>
     </div>
@@ -420,7 +425,9 @@ class Sequencer {
     this.bpm = 120;
     this.isPlaying = false;
     // Handles normalised to clock radius (P0 fixed at center 0,0).
-    this.handles = [[0,-0.30],[0,-0.65],[0,-1.00]];
+    // A gentle default curve so the spin DIRECTION reads at a glance
+    // (a straight arm looks identical rotating either way).
+    this.handles = [[0.17,-0.30],[0.11,-0.66],[0,-1.00]];
     this.spinning = true;
     this.dir = 1;                  // 1 = CW, -1 = CCW
     this.sweepAngle = 0;
@@ -454,6 +461,22 @@ class Sequencer {
     n.orbitMode = 0; n.orbitSpeed = 100;
     this.notes.push(n);
     return n;
+  }
+  /* Snap every existing note to the nearest pitch in the chosen key/scale,
+     so changing Key or Scale instantly re-tunes the whole pattern. */
+  requantize(key, scaleName) {
+    const intervals = SCALES[scaleName] || SCALES["Chromatic"];
+    const inScale = m => intervals.includes((((m - key) % 12) + 12) % 12);
+    for (const n of this.notes) {
+      if (inScale(n.midi)) continue;
+      let best = n.midi;
+      for (let d = 1; d <= 6; d++) {
+        const down = n.midi - d, up = n.midi + d;
+        if (down >= 0 && inScale(down)) { best = down; break; }
+        if (up <= 127 && inScale(up)) { best = up; break; }
+      }
+      n.midi = best;
+    }
   }
   remove(n) { const i = this.notes.indexOf(n); if (i >= 0) this.notes.splice(i,1); }
   clear() { this.notes = []; }
@@ -557,9 +580,10 @@ function resize() {
   cv.width = W * DPR; cv.height = H * DPR;
   cv.style.width = W + "px"; cv.style.height = H + "px";
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  const sidebar = document.getElementById("panel").classList.contains("open") ? 280 : 0;
-  center = [(W - sidebar) / 2, H / 2 + 28];
-  R = Math.max(120, Math.min((W - sidebar)/2 - 60, (H - 150)/2 - 20));
+  // Layout is independent of the editor panel, so the orbit never jumps
+  // when the panel slides in/out (the panel simply overlays the canvas).
+  center = [W / 2, H / 2 + 28];
+  R = Math.max(120, Math.min(W/2 - 90, (H - 160)/2 - 30));
   seq.R = R;
 }
 window.addEventListener("resize", resize);
@@ -594,11 +618,13 @@ cv.addEventListener("mousedown", e => {
       selectNote(n); dragNote = n; return;
     }
   }
-  // 3. empty → deselect or add
-  if (selected) { selectNote(null); return; }
+  // 3. empty space: inside the ring → add a note (the panel stays put and
+  //    just swaps to the new note); outside the ring → dismiss the editor.
   if (Math.hypot(rx, ry) <= R + 22) {
     const n = seq.addNote(rx, ry, curKey, curScale);
     selectNote(n);
+  } else if (selected) {
+    selectNote(null);
   }
 });
 window.addEventListener("mousemove", e => {
@@ -630,7 +656,6 @@ function selectNote(n) {
   selected = n;
   if (n) { panel.classList.add("open"); syncPanel(); }
   else { panel.classList.remove("open"); }
-  resize();
 }
 function syncPanel() {
   const n = selected; if (!n) return;
@@ -671,16 +696,10 @@ function setPlay(on) {
 playBtn.onclick = () => setPlay(!seq.isPlaying);
 el("clearBtn").onclick = () => { seq.clear(); selectNote(null); };
 el("bpm").oninput = e => { seq.bpm = +e.target.value; el("bpmVal").textContent = seq.bpm; };
-el("spinBtn").onclick = e => {
-  seq.spinning = !seq.spinning;
-  e.target.textContent = "SPIN: " + (seq.spinning ? "ON" : "OFF");
-  e.target.classList.toggle("on", seq.spinning);
-  if (!seq.spinning) seq.sweepAngle = 0;
-};
-el("dirBtn").onclick = e => {
-  seq.dir = -seq.dir;
-  e.target.textContent = "DIR: " + (seq.dir === 1 ? "CW" : "CCW");
-};
+function updateSpinBtn() { const b = el("spinBtn"); b.textContent = "SPIN: " + (seq.spinning ? "ON" : "OFF"); b.classList.toggle("on", seq.spinning); }
+function updateDirBtn() { el("dirBtn").textContent = "DIR: " + (seq.dir === 1 ? "CW" : "CCW"); }
+el("spinBtn").onclick = () => { seq.spinning = !seq.spinning; if (!seq.spinning) seq.sweepAngle = 0; updateSpinBtn(); };
+el("dirBtn").onclick = () => { seq.dir = -seq.dir; updateDirBtn(); };
 el("specBtn").onclick = e => { showSpectrum = !showSpectrum; e.target.classList.toggle("on", showSpectrum); };
 el("waveSel").onchange = e => synth.waveform = e.target.value;
 el("reverb").oninput = e => synth.setReverb(+e.target.value / 100);
@@ -689,8 +708,82 @@ el("reverb").oninput = e => synth.setReverb(+e.target.value / 100);
 const keySel = el("keySel"), scaleSel = el("scaleSel");
 NOTE_NAMES.forEach((nm,i) => { const o = document.createElement("option"); o.value = i; o.textContent = nm; keySel.appendChild(o); });
 Object.keys(SCALES).forEach(nm => { const o = document.createElement("option"); o.value = nm; o.textContent = nm; if (nm===curScale) o.selected = true; scaleSel.appendChild(o); });
-keySel.onchange = e => curKey = +e.target.value;
-scaleSel.onchange = e => curScale = e.target.value;
+keySel.onchange = e => { curKey = +e.target.value; seq.requantize(curKey, curScale); if (selected) syncPanel(); };
+scaleSel.onchange = e => { curScale = e.target.value; seq.requantize(curKey, curScale); if (selected) syncPanel(); };
+
+/* ── Starter songs — curated patterns so non-musicians hear something
+   gorgeous in one click. Each note: r (0..1 radius), ang (0..1 around),
+   midi, div (clock divisor), optional vel/gate. ─────────────────────── */
+const PRESETS = {
+  "✨ Kirlian Bloom": {
+    bpm:120, key:0, scale:"Major", wave:"bell", reverb:0.42, dir:1,
+    notes:[
+      {r:0.34, ang:0.00, midi:60, div:1},
+      {r:0.58, ang:0.66, midi:64, div:2},
+      {r:0.80, ang:0.33, midi:67, div:4},
+      {r:0.94, ang:0.50, midi:72, div:8, gate:1.0},
+    ]},
+  "🌌 Deep Space Pad": {
+    bpm:68, key:0, scale:"Major", wave:"sine", reverb:0.62, dir:1,
+    notes:[
+      {r:0.40, ang:0.00, midi:48, div:4, vel:72, gate:1.6},
+      {r:0.58, ang:0.50, midi:55, div:8, vel:64, gate:1.8},
+      {r:0.74, ang:0.25, midi:60, div:8, vel:60, gate:1.8},
+      {r:0.90, ang:0.75, midi:64, div:6, vel:55, gate:2.0},
+    ]},
+  "💫 Starlight Cascade": {
+    bpm:108, key:0, scale:"Pentatonic Major", wave:"pluck", reverb:0.50, dir:1,
+    notes:[
+      {r:0.28, ang:0.00, midi:72, div:1},
+      {r:0.40, ang:0.16, midi:74, div:2},
+      {r:0.52, ang:0.33, midi:76, div:2},
+      {r:0.64, ang:0.50, midi:79, div:4},
+      {r:0.78, ang:0.66, midi:81, div:4},
+      {r:0.90, ang:0.83, midi:84, div:8},
+    ]},
+  "🔮 Neon Arpeggio": {
+    bpm:128, key:9, scale:"Minor", wave:"supersaw", reverb:0.30, dir:1,
+    notes:[
+      {r:0.30, ang:0.00, midi:57, div:1},
+      {r:0.46, ang:0.33, midi:60, div:1},
+      {r:0.62, ang:0.66, midi:64, div:2},
+      {r:0.78, ang:0.16, midi:69, div:2},
+      {r:0.92, ang:0.50, midi:72, div:4},
+    ]},
+  "🌀 Hypno Pulse": {
+    bpm:124, key:0, scale:"Minor", wave:"pluck", reverb:0.26, dir:1,
+    notes:[
+      {r:0.26, ang:0.00, midi:36, div:1, gate:0.3},
+      {r:0.44, ang:0.50, midi:48, div:2, gate:0.3},
+      {r:0.60, ang:0.25, midi:51, div:4},
+      {r:0.74, ang:0.75, midi:55, div:4},
+      {r:0.90, ang:0.00, midi:60, div:8},
+    ]},
+};
+const presetSel = el("presetSel");
+Object.keys(PRESETS).forEach(name => { const o = document.createElement("option"); o.value = name; o.textContent = name; presetSel.appendChild(o); });
+function loadPreset(name) {
+  const p = PRESETS[name]; if (!p) return;
+  seq.notes = [];
+  seq.bpm = p.bpm; el("bpm").value = p.bpm; el("bpmVal").textContent = p.bpm;
+  curKey = p.key; keySel.value = p.key;
+  curScale = p.scale; scaleSel.value = p.scale;
+  synth.waveform = p.wave; el("waveSel").value = p.wave;
+  synth.setReverb(p.reverb); el("reverb").value = Math.round(p.reverb * 100);
+  seq.spinning = p.spin !== false; updateSpinBtn();
+  seq.dir = p.dir || 1; updateDirBtn();
+  if (seq.spinning) seq.sweepAngle = 0;
+  for (const nd of p.notes) {
+    const n = new Note(nd.r, (nd.ang || 0) * TWO_PI, nd.midi);
+    n.orbitMode = nd.div ? 1 : 0;
+    n.orbitSpeed = nd.div || nd.speed || 100;
+    n.velocity = nd.vel || 100;
+    n.gate = nd.gate || 0.5;
+    seq.notes.push(n);
+  }
+  selectNote(null);
+}
+presetSel.onchange = e => { if (e.target.value) { beginIfNeeded(); loadPreset(e.target.value); setPlay(true); e.target.value = ""; } };
 
 /* ── Keyboard ──────────────────────────────────────────────────────── */
 window.addEventListener("keydown", e => {
@@ -698,6 +791,7 @@ window.addEventListener("keydown", e => {
   if (e.code === "Space") { e.preventDefault(); beginIfNeeded(); setPlay(!seq.isPlaying); }
   else if (e.code === "Delete" || e.code === "Backspace") { if (selected){ seq.remove(selected); selectNote(null); } }
   else if (e.key === "c" || e.key === "C") { seq.clear(); selectNote(null); }
+  else if (e.code === "Escape") { selectNote(null); }
 });
 
 /* ── Start gate ────────────────────────────────────────────────────── */
@@ -722,30 +816,56 @@ function makeStars() {
 }
 makeStars();
 
+let specHue = 0;
+const SPEC_BINS = 160;
+const specPeaks = new Float32Array(SPEC_BINS);
 function drawSpectrum() {
   if (!synth.ready || !showSpectrum) return;
   synth.analyser.getByteFrequencyData(synth.freqData);
   const data = synth.freqData;
-  const bins = 128;
-  const usable = Math.floor(data.length * 0.5); // skip the empty top half
+  const usable = Math.floor(data.length * 0.6);
+  specHue = (specHue + 0.25) % 360;       // slow chromatic drift
+  const bloom = R * 0.5;
   ctx.save();
   ctx.translate(center[0], center[1]);
-  ctx.rotate(seq.sweepAngle * 0.25); // the spectrum gently *spins*
-  for (let i = 0; i < bins; i++) {
-    const di = Math.floor(i / bins * usable);
-    const v = data[di] / 255;
-    if (v < 0.02) continue;
-    const a = (i / bins) * TWO_PI - Math.PI/2;
-    const inner = R + 6;
-    const outer = R + 6 + v * (R * 0.42);
-    const hue = 270 - v * 150; // violet → pink/green as it gets loud
-    ctx.strokeStyle = `hsla(${hue}, 95%, ${45 + v*25}%, ${0.25 + v*0.6})`;
-    ctx.lineWidth = (TWO_PI * inner / bins) * 0.7;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a)*inner, Math.sin(a)*inner);
-    ctx.lineTo(Math.cos(a)*outer, Math.sin(a)*outer);
-    ctx.stroke();
+  ctx.rotate(-seq.sweepAngle * 0.12);      // the spectrum gently *spins*
+  ctx.globalCompositeOperation = "lighter"; // additive neon glow
+  ctx.lineCap = "round";
+  for (let i = 0; i < SPEC_BINS; i++) {
+    const frac = i / SPEC_BINS;
+    // perceptual mapping: spread the energy-dense low frequencies outward
+    const di = Math.min(usable - 1, Math.floor(Math.pow(frac, 1.7) * usable));
+    let v = data[di] / 255;
+    v = Math.pow(v, 1.25);
+    // falling peak-hold
+    if (v > specPeaks[i]) specPeaks[i] = v;
+    else specPeaks[i] = Math.max(v, specPeaks[i] - 0.011);
+
+    const a = frac * TWO_PI - Math.PI / 2;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const inner = R + 5;
+    const hue = (frac * 280 + specHue) % 360;
+    const w = (TWO_PI * inner / SPEC_BINS) * 0.9;
+
+    if (v > 0.012) {
+      const outer = inner + v * bloom;
+      // solid alpha-scaled stroke — avoids allocating a gradient per bar
+      // per frame (160 × 60fps of GC churn); 'lighter' keeps it glowing.
+      ctx.strokeStyle = `hsla(${hue}, 96%, 66%, ${0.18 + v * 0.78})`;
+      ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(ca*inner, sa*inner); ctx.lineTo(ca*outer, sa*outer); ctx.stroke();
+      // soft inward reflection toward the core
+      const rin = inner - v * bloom * 0.45;
+      ctx.strokeStyle = `hsla(${hue},90%,62%,0.10)`; ctx.lineWidth = w * 0.8;
+      ctx.beginPath(); ctx.moveTo(ca*inner, sa*inner); ctx.lineTo(ca*rin, sa*rin); ctx.stroke();
+    }
+    // bright falling peak cap
+    const p = specPeaks[i];
+    if (p > 0.05) {
+      const pr = inner + p * bloom;
+      ctx.fillStyle = `hsla(${(hue+30)%360},100%,85%,0.85)`;
+      ctx.beginPath(); ctx.arc(ca*pr, sa*pr, w * 0.3, 0, TWO_PI); ctx.fill();
+    }
   }
   ctx.restore();
 }
@@ -818,6 +938,25 @@ function render(now) {
     ctx.strokeStyle = "#ff79c6"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(cx+h[0], cy+h[1], 8, 0, TWO_PI); ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx+h[0], cy+h[1], 4, 0, TWO_PI); ctx.fill();
+  }
+
+  // direction comet — a glowing trail on the rim makes CW vs CCW obvious
+  if (seq.spinning) {
+    const tip = seq.sweepAngle - Math.PI/2;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const segs = 16, span = 0.7;
+    for (let s = 0; s < segs; s++) {
+      const f = s / segs;
+      const a0 = tip - seq.dir * span * f;
+      const a1 = tip - seq.dir * span * (f + 1/segs);
+      ctx.strokeStyle = `rgba(255,121,198,${0.55 * (1 - f)})`;
+      ctx.lineWidth = 4 * (1 - f) + 0.5;
+      ctx.beginPath(); ctx.arc(cx, cy, R, Math.min(a0,a1), Math.max(a0,a1)); ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.beginPath(); ctx.arc(cx + Math.cos(tip)*R, cy + Math.sin(tip)*R, 5, 0, TWO_PI); ctx.fill();
+    ctx.restore();
   }
 
   // chord constellation — connect currently-sounding notes
