@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kirlian Orbits — Web (Self-Contained Synth + Spectrum)</title>
+<style>
+  /* ───────────────────────────────────────────────────────────────
+     Kirlian Aura palette (ported from ui.py)
+     ─────────────────────────────────────────────────────────────── */
+  :root {
+    --bg:        #0a0b10;
+    --panel:     #161721;
+    --border:    #2d3041;
+    --text:      #f8f8f2;
+    --muted:     #8b949e;
+    --primary:   #bd93f9; /* coronal violet */
+    --pink:      #ff79c6; /* neon coronal pink */
+    --emerald:   #50fa7b; /* electric note aura */
+    --red:       #ff5555;
+    --amber:     #ffb86c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    user-select: none; -webkit-user-select: none;
+  }
+  #stage { position: fixed; inset: 0; }
+  canvas { display: block; position: absolute; inset: 0; }
+
+  /* ── Top control bar ───────────────────────────────────────────── */
+  #topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: rgba(22,23,31,0.82);
+    backdrop-filter: blur(8px);
+    border-bottom: 2px solid #23263780;
+    z-index: 20; flex-wrap: wrap;
+  }
+  #topbar .brand { display:flex; flex-direction:column; line-height:1.05; margin-right: 6px; }
+  #topbar .brand .title {
+    font-size: 19px; font-weight: 800; letter-spacing: 1px;
+    color: var(--primary); text-shadow: 0 0 14px #bd93f988;
+  }
+  #topbar .brand .sub { font-size: 10px; color: var(--muted); }
+
+  .btn {
+    appearance:none; border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); background: #2b2f44; padding: 7px 12px;
+    font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: filter .12s, background .12s, box-shadow .12s;
+  }
+  .btn:hover { filter: brightness(1.18); }
+  .btn.play   { background: #32c864; border-color:#32c864; color:#06210f; }
+  .btn.play.on{ background: var(--amber); border-color: var(--amber); color:#3a1f00; }
+  .btn.clear  { background: #963232; border-color:#a04040; }
+  .btn.toggle.on { background: var(--primary); border-color: var(--primary); color:#1a0f33; box-shadow: 0 0 16px #bd93f966; }
+  .btn.toggle.dir { background: var(--pink); border-color: var(--pink); color:#330a22; }
+
+  .ctl { display:flex; flex-direction:column; gap:2px; }
+  .ctl label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing:.5px; }
+  .ctl .row { display:flex; align-items:center; gap:6px; }
+  .ctl select {
+    appearance:none; background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:13px; cursor:pointer;
+  }
+  input[type=range] {
+    -webkit-appearance:none; appearance:none; height:5px; border-radius:4px;
+    background: var(--border); outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; appearance:none; width:14px; height:14px; border-radius:50%;
+    background: var(--primary); box-shadow:0 0 8px #bd93f9aa; border:2px solid #fff2;
+  }
+  input[type=range]::-moz-range-thumb {
+    width:14px; height:14px; border-radius:50%; border:2px solid #fff2;
+    background: var(--primary); box-shadow:0 0 8px #bd93f9aa;
+  }
+  .val { font-size: 12px; color: var(--text); min-width: 30px; font-variant-numeric: tabular-nums; }
+
+  /* ── Note editor side panel ────────────────────────────────────── */
+  #panel {
+    position:absolute; top:0; right:0; bottom:0; width:280px;
+    background: rgba(22,23,31,0.94);
+    border-left: 2px solid var(--border);
+    padding: 16px; z-index: 15;
+    transform: translateX(300px); transition: transform .22s cubic-bezier(.2,.8,.2,1);
+    overflow-y: auto;
+  }
+  #panel.open { transform: translateX(0); }
+  #panel h2 { color: var(--primary); font-size:18px; margin:0 0 2px; letter-spacing:1px; text-shadow:0 0 12px #bd93f966; }
+  #panel .notename { color: var(--text); font-size:13px; margin-bottom:16px; }
+  #panel .field { margin-bottom: 14px; }
+  #panel .field .top { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:.5px; }
+  #panel .field input[type=range] { width:100%; }
+  #panel select { width:100%; }
+  #panel .delete { width:100%; margin-top:6px; }
+
+  /* ── Hint + start overlay ──────────────────────────────────────── */
+  #hint {
+    position:absolute; left:14px; bottom:10px; font-size:11px; color: var(--muted);
+    z-index: 12; pointer-events:none; text-shadow:0 1px 3px #000a;
+  }
+  #credit {
+    position:absolute; right:14px; bottom:10px; font-size:11px; color: var(--muted);
+    z-index: 12; text-shadow:0 1px 3px #000a;
+  }
+  #credit a { color: var(--pink); text-decoration:none; }
+  #credit a:hover { text-decoration:underline; }
+  #start {
+    position:absolute; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background: radial-gradient(circle at 50% 45%, #14111fdd, #0a0b10f2);
+    cursor:pointer; text-align:center;
+  }
+  #start .big { font-size: 34px; font-weight:800; letter-spacing:2px; color: var(--primary); text-shadow:0 0 26px #bd93f9aa; }
+  #start .pulse { margin-top:18px; font-size:15px; color: var(--text); }
+  #start .pulse b { color: var(--pink); }
+  #start .small { margin-top:26px; font-size:12px; color: var(--muted); max-width: 520px; line-height:1.6; }
+  @keyframes glowpulse { 0%,100%{opacity:.55} 50%{opacity:1} }
+  #start .pulse { animation: glowpulse 1.8s ease-in-out infinite; }
+  .hidden { display:none !important; }
+  kbd { background:#2b2f44; border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:11px; color:var(--text); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv"></canvas>
+
+  <!-- Top control bar -->
+  <div id="topbar">
+    <div class="brand">
+      <span class="title">KIRLIAN ORBITS</span>
+      <span class="sub">web edition · built-in synth + live spectrum</span>
+    </div>
+    <button id="playBtn" class="btn play">▶ PLAY</button>
+    <button id="clearBtn" class="btn clear">CLEAR</button>
+
+    <div class="ctl">
+      <label>Tempo</label>
+      <div class="row"><input id="bpm" type="range" min="20" max="300" value="120" style="width:90px"><span class="val" id="bpmVal">120</span></div>
+    </div>
+
+    <button id="spinBtn" class="btn toggle on">SPIN: ON</button>
+    <button id="dirBtn" class="btn toggle dir">DIR: CW</button>
+
+    <div class="ctl">
+      <label>Key</label>
+      <select id="keySel"></select>
+    </div>
+    <div class="ctl">
+      <label>Scale</label>
+      <select id="scaleSel"></select>
+    </div>
+    <div class="ctl">
+      <label>Voice</label>
+      <select id="waveSel">
+        <option value="pluck">Kirlian Pluck</option>
+        <option value="supersaw">Super Saw</option>
+        <option value="bell">FM Bell</option>
+        <option value="sine">Pure Sine</option>
+      </select>
+    </div>
+    <div class="ctl">
+      <label>Reverb</label>
+      <div class="row"><input id="reverb" type="range" min="0" max="100" value="38" style="width:70px"></div>
+    </div>
+    <button id="specBtn" class="btn toggle on">SPECTRUM</button>
+  </div>
+
+  <!-- Note editor -->
+  <div id="panel">
+    <h2>NOTE EDITOR</h2>
+    <div class="notename" id="pNoteName">—</div>
+
+    <div class="field">
+      <div class="top"><span>Pitch</span><span id="pPitchVal">C4</span></div>
+      <input id="pPitch" type="range" min="24" max="108" value="60">
+    </div>
+    <div class="field">
+      <div class="top"><span>Velocity</span><span id="pVelVal">100</span></div>
+      <input id="pVel" type="range" min="1" max="127" value="100">
+    </div>
+    <div class="field">
+      <div class="top"><span>Gate (beats)</span><span id="pGateVal">0.50</span></div>
+      <input id="pGate" type="range" min="0.05" max="2" step="0.05" value="0.5">
+    </div>
+    <div class="field">
+      <div class="top"><span>Orbit Mode</span><span></span></div>
+      <button id="pMode" class="btn toggle on" style="width:100%">Mode: BPM %</button>
+    </div>
+    <div class="field">
+      <div class="top"><span id="pSpeedLbl">Orbit Speed</span><span id="pSpeedVal">100%</span></div>
+      <input id="pSpeed" type="range" min="10" max="400" value="100">
+    </div>
+    <button id="pDelete" class="btn clear delete">DELETE NOTE</button>
+  </div>
+
+  <div id="hint">
+    <kbd>Space</kbd> play · <b>Click</b> ring to add a note · Drag notes &amp; sweep-arm handles · <kbd>Del</kbd> remove · <kbd>C</kbd> clear
+  </div>
+  <div id="credit">
+    Concept &amp; original by <a href="https://www.patreon.com/bennjordan" target="_blank" rel="noopener">Benn Jordan</a> · CC BY-NC 4.0
+  </div>
+
+  <!-- Start gate (browsers require a gesture before audio) -->
+  <div id="start">
+    <div class="big">KIRLIAN ORBITS</div>
+    <div class="pulse">Click anywhere to <b>spin up the sound engine</b></div>
+    <div class="small">
+      A circular sequencer where notes orbit and a spinning electric arm plays them.
+      This web edition has its own built-in synthesizer and a live spectrum wrapped around the ring —
+      no MIDI, no setup. Original concept by Benn Jordan.
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ════════════════════════════════════════════════════════════════════
+   KIRLIAN ORBITS — Web Edition
+   A faithful re-imagining of Benn Jordan's circular MIDI sequencer,
+   ported to Canvas + the Web Audio API so it runs anywhere (esp. Mac)
+   by just opening this file — and makes sound on its own.
+
+   Trigger math, orbital model, Bezier sweep-arm and Kirlian aesthetic
+   mirror the original Python (sequencer.py / ui.py). Added on top:
+   a self-contained polyphonic synth and a radial FFT spectrum.
+   ──────────────────────────────────────────────────────────────────── */
+
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const SCALES = {
+  "Chromatic":[0,1,2,3,4,5,6,7,8,9,10,11],
+  "Major":[0,2,4,5,7,9,11],
+  "Minor":[0,2,3,5,7,8,10],
+  "Pentatonic Major":[0,2,4,7,9],
+  "Pentatonic Minor":[0,3,5,7,10],
+  "Blues":[0,3,5,6,7,10],
+  "Dorian":[0,2,3,5,7,9,10],
+  "Phrygian":[0,1,3,5,7,8,10],
+  "Lydian":[0,2,4,6,7,9,11],
+  "Mixolydian":[0,2,4,5,7,9,10],
+  "Locrian":[0,1,3,5,6,8,10],
+  "Harmonic Minor":[0,2,3,5,7,8,11],
+  "Melodic Minor":[0,2,3,5,7,9,11],
+  "Whole Tone":[0,2,4,6,8,10],
+  "Hijaz / Phrygian Dom":[0,1,4,5,7,8,10],
+  "Hungarian Minor":[0,2,3,6,7,8,11],
+  "Japanese In Sen":[0,1,5,7,8],
+  "Raga Bhairav":[0,1,4,5,7,8,11],
+  "Spanish Gypsy":[0,1,4,5,7,8,10],
+  "Acoustic / Lydian Dom":[0,2,4,6,7,9,10],
+  "Major Locrian":[0,2,4,5,6,8,10],
+  "Enigmatic":[0,1,4,6,8,10,11],
+};
+const TWO_PI = Math.PI * 2;
+
+const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
+const midiToName = m => NOTE_NAMES[((m % 12)+12)%12] + (Math.floor(m/12) - 1);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+/* ════════════════════════════════════════════════════════════════════
+   AUDIO ENGINE — the part the original deliberately left to a DAW.
+   Polyphonic, per-voice ADSR + filter, with a generated reverb so a
+   first-time Mac user hears something gorgeous immediately.
+   ──────────────────────────────────────────────────────────────────── */
+class SynthEngine {
+  constructor() {
+    this.ctx = null;
+    this.ready = false;
+    this.waveform = "pluck";
+    this.reverbMix = 0.38;
+  }
+  init() {
+    if (this.ready) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) { console.warn("Web Audio API is not supported in this browser."); return; }
+    this.ctx = new Ctx();
+
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.85;
+
+    // Analyser taps the full mix → drives the radial spectrum.
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 2048;
+    this.analyser.smoothingTimeConstant = 0.78;
+    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+
+    // Dry path
+    this.dry = this.ctx.createGain();
+    // Wet path via generated-impulse convolver
+    this.conv = this.ctx.createConvolver();
+    this.conv.buffer = this._makeImpulse(2.6, 2.4);
+    this.wet = this.ctx.createGain();
+
+    this.master.connect(this.dry);
+    this.master.connect(this.conv);
+    this.conv.connect(this.wet);
+    this.dry.connect(this.analyser);
+    this.wet.connect(this.analyser);
+    this.analyser.connect(this.ctx.destination);
+
+    this.setReverb(this.reverbMix);
+    this.ready = true;
+  }
+  resume() { if (this.ctx && this.ctx.state === "suspended") this.ctx.resume(); }
+  setReverb(mix) {
+    this.reverbMix = mix;
+    if (!this.ready) return;
+    this.wet.gain.value = mix;
+    this.dry.gain.value = 1 - 0.45 * mix;
+  }
+  _makeImpulse(seconds, decay) {
+    const rate = this.ctx.sampleRate;
+    const len = Math.floor(rate * seconds);
+    const buf = this.ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+      }
+    }
+    return buf;
+  }
+  /* Fire a note. gateSec controls how long the envelope sustains. */
+  noteOn(midi, velocity, gateSec) {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    const freq = midiToFreq(midi);
+    const vel = clamp(velocity, 1, 127) / 127;
+    const g = clamp(gateSec, 0.05, 6);
+
+    const vca = this.ctx.createGain();
+    vca.gain.value = 0;
+    const filt = this.ctx.createBiquadFilter();
+    filt.type = "lowpass";
+
+    const oscs = [];
+    const wf = this.waveform;
+    if (wf === "supersaw") {
+      [-12, -5, 0, 5, 12].forEach(cents => {
+        const o = this.ctx.createOscillator();
+        o.type = "sawtooth"; o.frequency.value = freq; o.detune.value = cents;
+        oscs.push(o);
+      });
+      filt.frequency.value = 1200 + vel * 6000; filt.Q.value = 0.8;
+    } else if (wf === "bell") {
+      const carrier = this.ctx.createOscillator(); carrier.type = "sine"; carrier.frequency.value = freq;
+      const mod = this.ctx.createOscillator(); mod.type = "sine"; mod.frequency.value = freq * 2.01;
+      const modGain = this.ctx.createGain(); modGain.gain.value = freq * 1.4;
+      mod.connect(modGain); modGain.connect(carrier.frequency);
+      mod.start(t);
+      mod.stop(t + g + 1.2);
+      oscs.push(carrier);
+      filt.frequency.value = 6000; filt.Q.value = 0.4;
+    } else if (wf === "sine") {
+      const o = this.ctx.createOscillator(); o.type = "sine"; o.frequency.value = freq; oscs.push(o);
+      filt.frequency.value = 8000; filt.Q.value = 0.2;
+    } else { // "pluck" — two detuned saws through an env-swept filter
+      const o1 = this.ctx.createOscillator(); o1.type = "sawtooth"; o1.frequency.value = freq; o1.detune.value = -6;
+      const o2 = this.ctx.createOscillator(); o2.type = "sawtooth"; o2.frequency.value = freq; o2.detune.value = 7;
+      oscs.push(o1, o2);
+      const peak = clamp(freq * 6, 800, 9000);
+      filt.frequency.setValueAtTime(peak, t);
+      filt.frequency.exponentialRampToValueAtTime(Math.max(220, freq * 1.4), t + Math.min(0.5, g));
+      filt.Q.value = 3.5;
+    }
+
+    oscs.forEach(o => { o.connect(filt); });
+    filt.connect(vca);
+    vca.connect(this.master);
+
+    // ADSR — clamp attack/decay inside very short gates so envelope
+    // events stay strictly chronological (out-of-order scheduling pops).
+    const peakGain = 0.28 * vel;
+    const atk = 0.006, dec = 0.09, sus = peakGain * 0.6;
+    vca.gain.cancelScheduledValues(t);
+    vca.gain.setValueAtTime(0, t);
+    const atkTime = Math.min(atk, g * 0.1);
+    const decTime = Math.min(atk + dec, g * 0.9);
+    vca.gain.linearRampToValueAtTime(peakGain, t + atkTime);
+    vca.gain.linearRampToValueAtTime(sus, t + decTime);
+    const rel = 0.18;
+    vca.gain.setValueAtTime(Math.max(sus, 0.0001), t + g);
+    vca.gain.exponentialRampToValueAtTime(0.0001, t + g + rel);
+
+    oscs.forEach(o => { o.start(t); o.stop(t + g + rel + 0.05); });
+    oscs[oscs.length - 1].onended = () => { try { vca.disconnect(); filt.disconnect(); } catch(e){} };
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MODEL — Note + Sequencer (ported from sequencer.py)
+   Handles stored normalised to clock radius so it's resolution-free.
+   ──────────────────────────────────────────────────────────────────── */
+class Note {
+  constructor(normR, angle, midi) {
+    this.normR = normR;            // 0..1
+    this.polarAngle = angle;       // radians, 0 = up, +CW
+    this.prevAngle = angle;
+    this.midi = midi;
+    this.velocity = 100;
+    this.gate = 0.5;               // beats
+    this.orbitMode = 0;            // 0 = BPM %, 1 = sync divisor
+    this.orbitSpeed = 100;         // % (mode 0) or divisor (mode 1)
+    this.flash = 0;
+    this.radius = 19;              // visual px
+    this.initNormR = normR;
+    this.initAngle = angle;
+  }
+  get name() { return midiToName(this.midi); }
+}
+
+class Sequencer {
+  constructor() {
+    this.notes = [];
+    this.bpm = 120;
+    this.isPlaying = false;
+    // Handles normalised to clock radius (P0 fixed at center 0,0).
+    this.handles = [[0,-0.30],[0,-0.65],[0,-1.00]];
+    this.spinning = true;
+    this.dir = 1;                  // 1 = CW, -1 = CCW
+    this.sweepAngle = 0;
+    this.prevSweep = 0;
+    this.R = 250;                  // clock radius px (set each frame)
+    this._addDemo();
+  }
+  _addDemo() {
+    // A C-major-ish chord spread across orbital rings, clock-divisor synced.
+    const mk = (r, ang, midi, div) => { const n = new Note(r, ang, midi); n.orbitMode = 1; n.orbitSpeed = div; return n; };
+    this.notes.push(mk(0.34, 0,        60, 1)); // C4 inner, fastest
+    this.notes.push(mk(0.58, Math.PI*0.66, 64, 2)); // E4
+    this.notes.push(mk(0.80, Math.PI*1.33, 67, 4)); // G4
+    this.notes.push(mk(0.94, Math.PI*1.0,  72, 8)); // C5 outer, slowest
+  }
+  pitchFromRadius(normR, key, scaleName) {
+    const intervals = SCALES[scaleName] || SCALES["Chromatic"];
+    const lo = 36, hi = 96;
+    const inScale = [];
+    for (let p = lo; p <= hi; p++) if (intervals.includes((((p-key)%12)+12)%12)) inScale.push(p);
+    if (!inScale.length) return 60;
+    const idx = clamp(Math.round(normR * (inScale.length - 1)), 0, inScale.length - 1);
+    return inScale[idx];
+  }
+  addNote(rx, ry, key, scaleName) {
+    const dist = Math.hypot(rx, ry);
+    const normR = clamp(dist / this.R, 0.05, 1);
+    const angle = (Math.atan2(ry, rx) + Math.PI/2 + TWO_PI) % TWO_PI;
+    const midi = this.pitchFromRadius(normR, key, scaleName);
+    const n = new Note(normR, angle, midi);
+    n.orbitMode = 0; n.orbitSpeed = 100;
+    this.notes.push(n);
+    return n;
+  }
+  remove(n) { const i = this.notes.indexOf(n); if (i >= 0) this.notes.splice(i,1); }
+  clear() { this.notes = []; }
+  start() {
+    if (this.isPlaying) return;
+    this.isPlaying = true;
+    this.prevSweep = this.sweepAngle;
+    this.notes.forEach(n => n.prevAngle = n.polarAngle);
+  }
+  stop() { this.isPlaying = false; }
+
+  bezierPoints(ang) {
+    let [h1,h2,h3] = this.handles;
+    if (this.spinning) {
+      const c = Math.cos(ang), s = Math.sin(ang);
+      const rot = h => [h[0]*c - h[1]*s, h[0]*s + h[1]*c];
+      h1 = rot(h1); h2 = rot(h2); h3 = rot(h3);
+    }
+    const R = this.R, pts = [], steps = 80;
+    for (let i = 0; i <= steps; i++) {
+      const t = i/steps, mt = 1-t;
+      const bx = (3*mt*mt*t*h1[0] + 3*mt*t*t*h2[0] + t*t*t*h3[0]) * R;
+      const by = (3*mt*mt*t*h1[1] + 3*mt*t*t*h2[1] + t*t*t*h3[1]) * R;
+      pts.push([bx, by]);
+    }
+    return pts;
+  }
+  splineAngleAt(normR, pts) {
+    const target = normR * this.R;
+    let best = null, min = Infinity;
+    for (const p of pts) {
+      const pr = Math.hypot(p[0], p[1]);
+      const d = Math.abs(pr - target);
+      if (d < min) { min = d; best = p; }
+    }
+    if (!best) return 0;
+    return (Math.atan2(best[1], best[0]) + Math.PI/2 + TWO_PI) % TWO_PI;
+  }
+  _crossed(start, end) {
+    start = ((start % TWO_PI)+TWO_PI)%TWO_PI;
+    end   = ((end   % TWO_PI)+TWO_PI)%TWO_PI;
+    const diff = ((end - start) % TWO_PI + TWO_PI) % TWO_PI;
+    if (diff === 0) return false;
+    const targetShift = ((TWO_PI - start) % TWO_PI + TWO_PI) % TWO_PI;
+    return diff < Math.PI ? (targetShift <= diff) : (targetShift >= diff);
+  }
+  update(dt, synth) {
+    for (const n of this.notes) if (n.flash > 0) n.flash = Math.max(0, n.flash - dt * 3.2);
+    if (!this.isPlaying) return [];
+
+    const omegaBase = (Math.PI * this.bpm) / 120; // one rotation = 4 beats
+    if (this.spinning) {
+      this.prevSweep = this.sweepAngle;
+      this.sweepAngle = ((this.sweepAngle + this.dir * omegaBase * dt) % TWO_PI + TWO_PI) % TWO_PI;
+    }
+    const ptsCurr = this.bezierPoints(this.sweepAngle);
+    const ptsPrev = this.bezierPoints(this.prevSweep);
+    const fired = [];
+
+    for (const n of this.notes) {
+      let omega;
+      if (n.orbitMode === 0) omega = omegaBase * (n.orbitSpeed / 100);
+      else omega = omegaBase / Math.max(1, n.orbitSpeed);
+
+      n.prevAngle = n.polarAngle;
+      n.polarAngle = (n.polarAngle + omega * dt) % TWO_PI;
+
+      const sCurr = this.splineAngleAt(n.normR, ptsCurr);
+      const sPrev = this.splineAngleAt(n.normR, ptsPrev);
+      const relPrev = ((n.prevAngle - sPrev) % TWO_PI + TWO_PI) % TWO_PI;
+      const relCurr = ((n.polarAngle - sCurr) % TWO_PI + TWO_PI) % TWO_PI;
+
+      if (this._crossed(relPrev, relCurr)) {
+        const gateSec = n.gate * (60 / this.bpm);
+        synth.noteOn(n.midi, n.velocity, gateSec);
+        n.flash = 1;
+        fired.push(n);
+      }
+    }
+    return fired;
+  }
+  straighten() { this.handles = [[0,-0.30],[0,-0.65],[0,-1.00]]; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   APP — wiring, input, rendering
+   ──────────────────────────────────────────────────────────────────── */
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const synth = new SynthEngine();
+const seq = new Sequencer();
+
+let W = 0, H = 0, DPR = 1;
+let center = [0,0], R = 250;
+let selected = null, dragNote = null, dragHandle = null;
+let curKey = 0, curScale = "Major", showSpectrum = true;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const sidebar = document.getElementById("panel").classList.contains("open") ? 280 : 0;
+  center = [(W - sidebar) / 2, H / 2 + 28];
+  R = Math.max(120, Math.min((W - sidebar)/2 - 60, (H - 150)/2 - 20));
+  seq.R = R;
+}
+window.addEventListener("resize", resize);
+
+/* ── Pointer interaction ───────────────────────────────────────────── */
+function localPos(e) {
+  const r = cv.getBoundingClientRect();
+  return [e.clientX - r.left, e.clientY - r.top];
+}
+cv.addEventListener("mousedown", e => {
+  if (e.button !== 0) return;
+  const [mx, my] = localPos(e);
+  if (my < 64) return; // top bar zone
+  const rx = mx - center[0], ry = my - center[1];
+
+  // 1. sweep-arm handles (rotated when spinning)
+  let hs = seq.handles.map(h => [h[0]*R, h[1]*R]);
+  if (seq.spinning) {
+    const c = Math.cos(seq.sweepAngle), s = Math.sin(seq.sweepAngle);
+    hs = hs.map(h => [h[0]*c - h[1]*s, h[0]*s + h[1]*c]);
+  }
+  for (let i = 0; i < hs.length; i++) {
+    if (Math.hypot(rx - hs[i][0], ry - hs[i][1]) <= 13) {
+      dragHandle = i; selectNote(null); return;
+    }
+  }
+  // 2. existing notes
+  for (const n of seq.notes) {
+    const vr = n.normR * R;
+    const nx = vr * Math.sin(n.polarAngle), ny = -vr * Math.cos(n.polarAngle);
+    if (Math.hypot(rx - nx, ry - ny) <= n.radius + 4) {
+      selectNote(n); dragNote = n; return;
+    }
+  }
+  // 3. empty → deselect or add
+  if (selected) { selectNote(null); return; }
+  if (Math.hypot(rx, ry) <= R + 22) {
+    const n = seq.addNote(rx, ry, curKey, curScale);
+    selectNote(n);
+  }
+});
+window.addEventListener("mousemove", e => {
+  if (dragHandle === null && !dragNote) return;
+  const [mx, my] = localPos(e);
+  let rx = mx - center[0], ry = my - center[1];
+  if (dragHandle !== null) {
+    const dist = Math.hypot(rx, ry);
+    if (dist > R) { rx = rx/dist*R; ry = ry/dist*R; }
+    let bx = rx, by = ry;
+    if (seq.spinning) { // un-rotate so handle stays put in base frame
+      const c = Math.cos(-seq.sweepAngle), s = Math.sin(-seq.sweepAngle);
+      bx = rx*c - ry*s; by = rx*s + ry*c;
+    }
+    seq.handles[dragHandle] = [bx/R, by/R];
+  } else if (dragNote) {
+    const dist = Math.hypot(rx, ry);
+    dragNote.normR = clamp(dist / R, 0.05, 1);
+    dragNote.polarAngle = (Math.atan2(ry, rx) + Math.PI/2 + TWO_PI) % TWO_PI;
+    if (dragNote === selected) syncPanel();
+  }
+});
+window.addEventListener("mouseup", () => { dragNote = null; dragHandle = null; });
+
+/* ── Note editor panel ─────────────────────────────────────────────── */
+const panel = document.getElementById("panel");
+const el = id => document.getElementById(id);
+function selectNote(n) {
+  selected = n;
+  if (n) { panel.classList.add("open"); syncPanel(); }
+  else { panel.classList.remove("open"); }
+  resize();
+}
+function syncPanel() {
+  const n = selected; if (!n) return;
+  el("pNoteName").textContent = "Note: " + n.name;
+  el("pPitch").value = n.midi; el("pPitchVal").textContent = n.name;
+  el("pVel").value = n.velocity; el("pVelVal").textContent = n.velocity;
+  el("pGate").value = n.gate; el("pGateVal").textContent = n.gate.toFixed(2);
+  const m = el("pMode"), sp = el("pSpeed");
+  if (n.orbitMode === 0) {
+    m.textContent = "Mode: BPM %"; m.classList.add("on");
+    el("pSpeedLbl").textContent = "Orbit Speed";
+    sp.min = 10; sp.max = 400; sp.step = 1; sp.value = n.orbitSpeed;
+    el("pSpeedVal").textContent = n.orbitSpeed + "%";
+  } else {
+    m.textContent = "Mode: Sync Divisor"; m.classList.remove("on");
+    el("pSpeedLbl").textContent = "Clock Divisor";
+    sp.min = 1; sp.max = 16; sp.step = 1; sp.value = n.orbitSpeed;
+    el("pSpeedVal").textContent = "/" + n.orbitSpeed;
+  }
+}
+el("pPitch").oninput = e => { if (selected){ selected.midi = +e.target.value; el("pPitchVal").textContent = selected.name; } };
+el("pVel").oninput   = e => { if (selected){ selected.velocity = +e.target.value; el("pVelVal").textContent = selected.velocity; } };
+el("pGate").oninput  = e => { if (selected){ selected.gate = +e.target.value; el("pGateVal").textContent = selected.gate.toFixed(2); } };
+el("pMode").onclick  = () => { if (selected){ selected.orbitMode = 1 - selected.orbitMode; selected.orbitSpeed = selected.orbitMode === 0 ? 100 : 2; syncPanel(); } };
+el("pSpeed").oninput = e => {
+  if (!selected) return;
+  selected.orbitSpeed = +e.target.value;
+  el("pSpeedVal").textContent = selected.orbitMode === 0 ? selected.orbitSpeed + "%" : "/" + selected.orbitSpeed;
+};
+el("pDelete").onclick = () => { if (selected){ seq.remove(selected); selectNote(null); } };
+
+/* ── Top bar controls ──────────────────────────────────────────────── */
+const playBtn = el("playBtn");
+function setPlay(on) {
+  if (on) { synth.init(); synth.resume(); seq.start(); playBtn.textContent = "❚❚ PAUSE"; playBtn.classList.add("on"); }
+  else { seq.stop(); playBtn.textContent = "▶ PLAY"; playBtn.classList.remove("on"); }
+}
+playBtn.onclick = () => setPlay(!seq.isPlaying);
+el("clearBtn").onclick = () => { seq.clear(); selectNote(null); };
+el("bpm").oninput = e => { seq.bpm = +e.target.value; el("bpmVal").textContent = seq.bpm; };
+el("spinBtn").onclick = e => {
+  seq.spinning = !seq.spinning;
+  e.target.textContent = "SPIN: " + (seq.spinning ? "ON" : "OFF");
+  e.target.classList.toggle("on", seq.spinning);
+  if (!seq.spinning) seq.sweepAngle = 0;
+};
+el("dirBtn").onclick = e => {
+  seq.dir = -seq.dir;
+  e.target.textContent = "DIR: " + (seq.dir === 1 ? "CW" : "CCW");
+};
+el("specBtn").onclick = e => { showSpectrum = !showSpectrum; e.target.classList.toggle("on", showSpectrum); };
+el("waveSel").onchange = e => synth.waveform = e.target.value;
+el("reverb").oninput = e => synth.setReverb(+e.target.value / 100);
+
+// populate selects
+const keySel = el("keySel"), scaleSel = el("scaleSel");
+NOTE_NAMES.forEach((nm,i) => { const o = document.createElement("option"); o.value = i; o.textContent = nm; keySel.appendChild(o); });
+Object.keys(SCALES).forEach(nm => { const o = document.createElement("option"); o.value = nm; o.textContent = nm; if (nm===curScale) o.selected = true; scaleSel.appendChild(o); });
+keySel.onchange = e => curKey = +e.target.value;
+scaleSel.onchange = e => curScale = e.target.value;
+
+/* ── Keyboard ──────────────────────────────────────────────────────── */
+window.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.code === "Space") { e.preventDefault(); beginIfNeeded(); setPlay(!seq.isPlaying); }
+  else if (e.code === "Delete" || e.code === "Backspace") { if (selected){ seq.remove(selected); selectNote(null); } }
+  else if (e.key === "c" || e.key === "C") { seq.clear(); selectNote(null); }
+});
+
+/* ── Start gate ────────────────────────────────────────────────────── */
+const startOverlay = el("start");
+function beginIfNeeded() {
+  if (!startOverlay.classList.contains("hidden")) {
+    startOverlay.classList.add("hidden");
+    synth.init(); synth.resume();
+    setPlay(true);
+  }
+}
+startOverlay.addEventListener("click", beginIfNeeded);
+
+/* ════════════════════════════════════════════════════════════════════
+   RENDER LOOP
+   ──────────────────────────────────────────────────────────────────── */
+let last = performance.now();
+let bgStars = [];
+function makeStars() {
+  bgStars = [];
+  for (let i = 0; i < 90; i++) bgStars.push([Math.random(), Math.random(), Math.random()*1.6+0.3]);
+}
+makeStars();
+
+function drawSpectrum() {
+  if (!synth.ready || !showSpectrum) return;
+  synth.analyser.getByteFrequencyData(synth.freqData);
+  const data = synth.freqData;
+  const bins = 128;
+  const usable = Math.floor(data.length * 0.5); // skip the empty top half
+  ctx.save();
+  ctx.translate(center[0], center[1]);
+  ctx.rotate(seq.sweepAngle * 0.25); // the spectrum gently *spins*
+  for (let i = 0; i < bins; i++) {
+    const di = Math.floor(i / bins * usable);
+    const v = data[di] / 255;
+    if (v < 0.02) continue;
+    const a = (i / bins) * TWO_PI - Math.PI/2;
+    const inner = R + 6;
+    const outer = R + 6 + v * (R * 0.42);
+    const hue = 270 - v * 150; // violet → pink/green as it gets loud
+    ctx.strokeStyle = `hsla(${hue}, 95%, ${45 + v*25}%, ${0.25 + v*0.6})`;
+    ctx.lineWidth = (TWO_PI * inner / bins) * 0.7;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a)*inner, Math.sin(a)*inner);
+    ctx.lineTo(Math.cos(a)*outer, Math.sin(a)*outer);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function render(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+
+  seq.update(dt, synth);
+
+  // background
+  ctx.fillStyle = "#0a0b10";
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  for (const [sx, sy, sr] of bgStars) {
+    ctx.fillStyle = "rgba(189,147,249,0.25)";
+    ctx.beginPath(); ctx.arc(sx*W, sy*H, sr, 0, TWO_PI); ctx.fill();
+  }
+  ctx.restore();
+
+  const [cx, cy] = center;
+
+  // live spectrum wrapped around the ring
+  drawSpectrum();
+
+  // faint orbital tracks
+  ctx.save();
+  for (const n of seq.notes) {
+    ctx.strokeStyle = "rgba(40,43,58,0.9)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, n.normR * R, 0, TWO_PI); ctx.stroke();
+  }
+  ctx.restore();
+
+  // glowing pink clock ring
+  ctx.save();
+  ctx.shadowColor = "#ff79c6"; ctx.shadowBlur = 26;
+  ctx.strokeStyle = "#ff79c6"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, TWO_PI); ctx.stroke();
+  ctx.restore();
+
+  // sweep arm (rotated bezier)
+  const pts = seq.bezierPoints(seq.sweepAngle);
+  ctx.save();
+  ctx.translate(cx, cy);
+  // control polygon (faint)
+  ctx.restore();
+  ctx.save();
+  ctx.shadowColor = "#bd93f9"; ctx.shadowBlur = 18;
+  ctx.strokeStyle = "#bd93f9"; ctx.lineWidth = 6; ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx + pts[0][0], cy + pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(cx + pts[i][0], cy + pts[i][1]);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx + pts[0][0], cy + pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(cx + pts[i][0], cy + pts[i][1]);
+  ctx.stroke();
+  ctx.restore();
+
+  // sweep-arm handles
+  let hs = seq.handles.map(h => [h[0]*R, h[1]*R]);
+  if (seq.spinning) {
+    const c = Math.cos(seq.sweepAngle), s = Math.sin(seq.sweepAngle);
+    hs = hs.map(h => [h[0]*c - h[1]*s, h[0]*s + h[1]*c]);
+  }
+  for (const h of hs) {
+    ctx.strokeStyle = "#ff79c6"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx+h[0], cy+h[1], 8, 0, TWO_PI); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx+h[0], cy+h[1], 4, 0, TWO_PI); ctx.fill();
+  }
+
+  // chord constellation — connect currently-sounding notes
+  const lit = seq.notes.filter(n => n.flash > 0.15);
+  if (lit.length >= 2) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(80,250,123,0.25)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    lit.forEach((n,i) => {
+      const vr = n.normR * R;
+      const x = cx + vr*Math.sin(n.polarAngle), y = cy - vr*Math.cos(n.polarAngle);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // orbiting notes
+  for (const n of seq.notes) {
+    const vr = n.normR * R;
+    const x = cx + vr*Math.sin(n.polarAngle), y = cy - vr*Math.cos(n.polarAngle);
+    const rad = n.radius;
+    // corona — layered concentric rings (cheaper than shadowBlur on Retina,
+    // and mirrors the Python original's discharge-aura approach).
+    ctx.save();
+    for (let layer = 4; layer > 0; layer--) {
+      const layerR = rad + layer * 3 + n.flash * 8;
+      const alpha = (0.1 + n.flash * 0.3) / layer;
+      ctx.fillStyle = `rgba(80, 250, 123, ${alpha})`;
+      ctx.beginPath(); ctx.arc(x, y, layerR, 0, TWO_PI); ctx.fill();
+    }
+    const fill = `rgba(${10 + n.flash*70}, ${30 + n.flash*120}, ${20 + n.flash*60}, 1)`;
+    ctx.fillStyle = fill;
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, TWO_PI); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = n.flash > 0.1 ? "#ffffff" : "#50fa7b";
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, TWO_PI); ctx.stroke();
+    ctx.restore();
+    if (n === selected) {
+      ctx.strokeStyle = "#ff79c6"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, rad + 5, 0, TWO_PI); ctx.stroke();
+    }
+    ctx.fillStyle = n.flash > 0.1 ? "#fff" : "#50fa7b";
+    ctx.font = "11px Segoe UI, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(n.name, x, y);
+  }
+
+  requestAnimationFrame(render);
+}
+
+resize();
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
