@@ -145,14 +145,18 @@ Top bar also has: **Tempo**, **Spin** on/off, **Direction** (CW/CCW), **Key**, *
 
 ## How it works (for the curious)
 
-It's a **polar sequencer**. Each note has a radius (≈ pitch, quantized to the key/scale) and an angle
-(its phase around the circle). A Bézier "arm" sweeps around; when it **crosses** a note's angle at
-that note's radius, the note fires. Because crossings are computed from **relative polar angles**
-rather than positions per frame, triggering is exact no matter the frame rate, tempo, or direction.
+It's a **polar sequencer**. Each note's **radius = pitch** (snapped to the key/scale; outer = higher)
+and its **angle = phase** around the circle. A Bézier "arm" sweeps around; when it **crosses** a note's
+angle at that note's radius, the note fires. Because crossings are computed from **relative polar
+angles** rather than positions per frame, triggering is exact no matter the frame rate, tempo, or
+direction. The same radius⇄pitch mapping is used everywhere — clicking to add a note, **dragging** one
+in/out to retune it, and laying out the Music Box — so the convention is always consistent.
 
 The **Music Box** mode is the same engine with the spin turned **off**: the arm sits still at 12
 o'clock and the *notes* orbit past it, so a melody laid out by angle reads out in order and loops —
-exactly like the pins on a music-box cylinder passing the comb.
+exactly like the pins on a music-box cylinder passing the comb. Because radius is pitch, each tune's
+notes sit at the height of their pitch, so the melody's **up-and-down contour is visible** as the
+notes spiral.
 
 ---
 
