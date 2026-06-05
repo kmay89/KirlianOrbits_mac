@@ -1,22 +1,1343 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- GitHub Pages serves the repo root, so this index.html is the landing
-       page. It forwards to the self-contained app. (Kept as a redirect so
-       there's a single source of truth — kirlian_orbits_web.html.) -->
-  <meta http-equiv="refresh" content="0; url=./kirlian_orbits_web.html" />
-  <script>window.location.replace("./kirlian_orbits_web.html");</script>
-  <title>Kirlian Orbits — Web Edition</title>
-  <style>
-    html, body { margin: 0; height: 100%; background: #0a0b10; color: #bd93f9;
-      font-family: "Segoe UI", system-ui, sans-serif; display: flex; align-items: center; justify-content: center; }
-    a { color: #ff79c6; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kirlian Orbits — Web (Self-Contained Synth + Spectrum)</title>
+<style>
+  /* ───────────────────────────────────────────────────────────────
+     Kirlian Aura palette (ported from ui.py)
+     ─────────────────────────────────────────────────────────────── */
+  :root {
+    --bg:        #0a0b10;
+    --panel:     #161721;
+    --border:    #2d3041;
+    --text:      #f8f8f2;
+    --muted:     #8b949e;
+    --primary:   #bd93f9; /* coronal violet */
+    --pink:      #ff79c6; /* neon coronal pink */
+    --emerald:   #50fa7b; /* electric note aura */
+    --red:       #ff5555;
+    --amber:     #ffb86c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    user-select: none; -webkit-user-select: none;
+  }
+  #stage { position: fixed; inset: 0; }
+  canvas { display: block; position: absolute; inset: 0; }
+
+  /* ── Top control bar ───────────────────────────────────────────── */
+  #topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: rgba(22,23,31,0.82);
+    backdrop-filter: blur(8px);
+    border-bottom: 2px solid #23263780;
+    z-index: 20; flex-wrap: wrap;
+  }
+  #topbar .brand { display:flex; flex-direction:column; line-height:1.05; margin-right: 6px; }
+  #topbar .brand .title {
+    font-size: 19px; font-weight: 800; letter-spacing: 1px;
+    color: var(--primary); text-shadow: 0 0 14px #bd93f988;
+  }
+  #topbar .brand .sub { font-size: 10px; color: var(--muted); }
+
+  .btn {
+    appearance:none; border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); background: #2b2f44; padding: 7px 12px;
+    font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: filter .12s, background .12s, box-shadow .12s;
+  }
+  .btn:hover { filter: brightness(1.18); }
+  .btn.play   { background: #32c864; border-color:#32c864; color:#06210f; }
+  .btn.play.on{ background: var(--amber); border-color: var(--amber); color:#3a1f00; }
+  .btn.clear  { background: #963232; border-color:#a04040; }
+  .btn.toggle.on { background: var(--primary); border-color: var(--primary); color:#1a0f33; box-shadow: 0 0 16px #bd93f966; }
+  .btn.toggle.dir { background: var(--pink); border-color: var(--pink); color:#330a22; }
+
+  .ctl { display:flex; flex-direction:column; gap:2px; }
+  .ctl label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing:.5px; }
+  .ctl .row { display:flex; align-items:center; gap:6px; }
+  .ctl select {
+    appearance:none; background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:13px; cursor:pointer;
+  }
+  input[type=range] {
+    -webkit-appearance:none; appearance:none; height:5px; border-radius:4px;
+    background: var(--border); outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; appearance:none; width:14px; height:14px; border-radius:50%;
+    background: var(--primary); box-shadow:0 0 8px #bd93f9aa; border:2px solid #fff2;
+  }
+  input[type=range]::-moz-range-thumb {
+    width:14px; height:14px; border-radius:50%; border:2px solid #fff2;
+    background: var(--primary); box-shadow:0 0 8px #bd93f9aa;
+  }
+  .val { font-size: 12px; color: var(--text); min-width: 30px; font-variant-numeric: tabular-nums; }
+
+  /* ── Note editor side panel ────────────────────────────────────── */
+  #panel {
+    position:absolute; top:0; right:0; bottom:0; width:280px;
+    background: rgba(22,23,31,0.94);
+    border-left: 2px solid var(--border);
+    padding: 16px; z-index: 15;
+    transform: translateX(300px); transition: transform .22s cubic-bezier(.2,.8,.2,1);
+    overflow-y: auto;
+  }
+  #panel.open { transform: translateX(0); }
+  #panel h2 { color: var(--primary); font-size:18px; margin:0 0 2px; letter-spacing:1px; text-shadow:0 0 12px #bd93f966; }
+  #panel .notename { color: var(--text); font-size:13px; margin-bottom:16px; }
+  #panel .field { margin-bottom: 14px; }
+  #panel .field .top { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:5px; text-transform:uppercase; letter-spacing:.5px; }
+  #panel .field input[type=range] { width:100%; }
+  #panel select { width:100%; }
+  #panel .delete { width:100%; margin-top:6px; }
+
+  /* ── Hint + start overlay ──────────────────────────────────────── */
+  #hint {
+    position:absolute; left:14px; bottom:10px; font-size:11px; color: var(--muted);
+    z-index: 12; pointer-events:none; text-shadow:0 1px 3px #000a;
+  }
+  #credit {
+    position:absolute; right:14px; bottom:10px; font-size:11px; color: var(--muted);
+    z-index: 12; text-shadow:0 1px 3px #000a;
+  }
+  #credit a { color: var(--pink); text-decoration:none; }
+  #credit a:hover { text-decoration:underline; }
+  #start {
+    position:absolute; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background: radial-gradient(circle at 50% 45%, #14111fdd, #0a0b10f2);
+    cursor:pointer; text-align:center;
+  }
+  #start .big { font-size: 34px; font-weight:800; letter-spacing:2px; color: var(--primary); text-shadow:0 0 26px #bd93f9aa; }
+  #start .pulse { margin-top:18px; font-size:15px; color: var(--text); }
+  #start .pulse b { color: var(--pink); }
+  #start .small { margin-top:26px; font-size:12px; color: var(--muted); max-width: 520px; line-height:1.6; }
+  @keyframes glowpulse { 0%,100%{opacity:.55} 50%{opacity:1} }
+  #start .pulse { animation: glowpulse 1.8s ease-in-out infinite; }
+  .hidden { display:none !important; }
+  kbd { background:#2b2f44; border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:11px; color:var(--text); }
+
+  /* ── Welcome columns + CTA ─────────────────────────────────────── */
+  #start .cols { display:flex; gap:20px; margin-top:24px; flex-wrap:wrap; justify-content:center; max-width:660px; padding:0 16px; }
+  #start .col { flex:1 1 250px; background:rgba(22,23,31,0.6); border:1px solid var(--border); border-radius:12px; padding:14px 16px; text-align:left; }
+  #start .col h3 { margin:0 0 8px; font-size:14px; }
+  #start .col.mus h3 { color:var(--primary); }
+  #start .col.non h3 { color:var(--emerald); }
+  #start .col p { margin:0; font-size:12.5px; color:var(--text); line-height:1.65; }
+  #start .col p b { color:var(--pink); }
+  #start .cta {
+    margin-top:26px; font-size:16px; font-weight:800; letter-spacing:1px; color:#06210f;
+    background:var(--emerald); border:none; border-radius:10px; padding:13px 30px; cursor:pointer;
+    box-shadow:0 0 28px #50fa7b66; animation: glowpulse 1.8s ease-in-out infinite;
+  }
+  #start .cta:hover { filter:brightness(1.1); }
+  #start .tiny2 { margin-top:16px; font-size:11px; color:var(--muted); }
+  #start .keys { display:flex; flex-wrap:wrap; gap:8px 14px; justify-content:center; margin-top:22px; max-width:620px; padding:0 16px; }
+  #start .keys span { font-size:11.5px; color:var(--muted); white-space:nowrap; }
+
+  /* ── Help button + first-run tips card ─────────────────────────── */
+  .helpbtn { width:30px; height:30px; border-radius:50%; border:1px solid var(--border);
+    background:#2b2f44; color:var(--primary); font-size:16px; font-weight:800; cursor:pointer; margin-left:auto; }
+  .helpbtn:hover { filter:brightness(1.25); }
+  #tips { position:absolute; left:14px; bottom:42px; z-index:14; max-width:440px;
+    background:rgba(22,23,31,0.95); border:1px solid var(--border); border-left:3px solid var(--emerald);
+    border-radius:10px; padding:12px 14px; box-shadow:0 8px 28px #000b; }
+  #tips h4 { margin:0 0 6px; font-size:13px; color:var(--emerald); }
+  #tips ul { margin:0; padding-left:18px; }
+  #tips li { font-size:12px; color:var(--text); line-height:1.75; }
+  #tips li b { color:var(--pink); }
+  #tips .close { margin-top:8px; font-size:11px; color:var(--muted); cursor:pointer; display:inline-block; }
+  #tips .close:hover { color:var(--text); }
+</style>
 </head>
 <body>
-  <p>Loading <strong>Kirlian Orbits</strong>… <a href="./kirlian_orbits_web.html">enter&nbsp;→</a></p>
+<div id="stage">
+  <canvas id="cv"></canvas>
+
+  <!-- Top control bar -->
+  <div id="topbar">
+    <div class="brand">
+      <span class="title">KIRLIAN ORBITS</span>
+      <span class="sub">web edition · built-in synth + live spectrum</span>
+    </div>
+    <button id="playBtn" class="btn play">▶ PLAY</button>
+    <button id="clearBtn" class="btn clear">CLEAR</button>
+
+    <div class="ctl">
+      <label>✨ Starter Song</label>
+      <select id="presetSel"><option value="">— pick a vibe —</option></select>
+    </div>
+
+    <div class="ctl">
+      <label>Tempo</label>
+      <div class="row"><input id="bpm" type="range" min="20" max="300" value="120" style="width:90px"><span class="val" id="bpmVal">120</span></div>
+    </div>
+
+    <button id="spinBtn" class="btn toggle on">SPIN: ON</button>
+    <button id="dirBtn" class="btn toggle dir">DIR: CW</button>
+
+    <div class="ctl">
+      <label>Key</label>
+      <select id="keySel"></select>
+    </div>
+    <div class="ctl">
+      <label>Scale</label>
+      <select id="scaleSel"></select>
+    </div>
+    <div class="ctl">
+      <label>Voice</label>
+      <select id="waveSel">
+        <option value="pluck">Kirlian Pluck</option>
+        <option value="supersaw">Super Saw</option>
+        <option value="bell">FM Bell</option>
+        <option value="sine">Pure Sine</option>
+      </select>
+    </div>
+    <div class="ctl">
+      <label>Reverb</label>
+      <div class="row"><input id="reverb" type="range" min="0" max="100" value="38" style="width:70px"></div>
+    </div>
+    <div class="ctl">
+      <label>Output</label>
+      <select id="outSel"><option value="synth">🔊 Built-in Synth</option></select>
+    </div>
+    <button id="specBtn" class="btn toggle on">SPECTRUM</button>
+    <button id="gridBtn" class="btn toggle on">GRID</button>
+    <button id="keysBtn" class="btn toggle on">KEYS</button>
+    <button id="helpBtn" class="helpbtn" title="How it works">?</button>
+  </div>
+
+  <!-- Note editor -->
+  <div id="panel">
+    <h2>NOTE EDITOR</h2>
+    <div class="notename" id="pNoteName">—</div>
+
+    <div class="field">
+      <div class="top"><span>Pitch</span><span id="pPitchVal">C4</span></div>
+      <input id="pPitch" type="range" min="24" max="108" value="60">
+    </div>
+    <div class="field">
+      <div class="top"><span>Velocity</span><span id="pVelVal">100</span></div>
+      <input id="pVel" type="range" min="1" max="127" value="100">
+    </div>
+    <div class="field">
+      <div class="top"><span>Gate (beats)</span><span id="pGateVal">0.50</span></div>
+      <input id="pGate" type="range" min="0.05" max="2" step="0.05" value="0.5">
+    </div>
+    <div class="field">
+      <div class="top"><span>Orbit Mode</span><span></span></div>
+      <button id="pMode" class="btn toggle on" style="width:100%">Mode: BPM %</button>
+    </div>
+    <div class="field">
+      <div class="top"><span id="pSpeedLbl">Orbit Speed</span><span id="pSpeedVal">100%</span></div>
+      <input id="pSpeed" type="range" min="10" max="400" value="100">
+    </div>
+    <button id="pDelete" class="btn clear delete">DELETE NOTE</button>
+  </div>
+
+  <div id="hint">
+    <kbd>Space</kbd> play · <kbd>1</kbd>–<kbd>9</kbd> songs · <b>Click</b> ring to add (spokes = beats) · click the keys to play · <kbd>?</kbd> help
+  </div>
+  <div id="credit">
+    Original by <a href="https://www.patreon.com/bennjordan" target="_blank" rel="noopener">Benn Jordan</a> ·
+    Web edition by <a href="https://github.com/kmay89" target="_blank" rel="noopener">Karl Meves</a> · ERRERLabs · CC BY-NC 4.0
+  </div>
+
+  <!-- First-run tips: a few quick ideas so anyone can make it their own -->
+  <div id="tips" class="hidden">
+    <h4>💡 Make it yours — try this</h4>
+    <ul>
+      <li><b>Pick a Starter Song</b> up top — the 🎵 Music Box tunes are famous melodies.</li>
+      <li><b>Click inside the ring</b> to drop your own note (it snaps to the key).</li>
+      <li><b>Drag a note outward</b> to raise its pitch — inward lowers it.</li>
+      <li>Flip <b>Scale → Minor</b> for an instant mood swing, or drag the <b>pink handles</b> to bend the arm.</li>
+    </ul>
+    <div class="close">Got it ✓</div>
+  </div>
+
+  <!-- Start gate / welcome (browsers require a gesture before audio) -->
+  <div id="start">
+    <div class="big">KIRLIAN ORBITS</div>
+    <div class="pulse">A circular music machine — <b>notes orbit, a glowing arm plays them.</b></div>
+    <div class="cols">
+      <div class="col non">
+        <h3>✨ Never touched music?</h3>
+        <p>Just press start — it <b>plays a song instantly</b>. Pick a <b>Starter Song</b> up top (try the 🎵 Music Box tunes), then <b>click inside the ring</b> to add glowing notes. They snap to the key, so it always sounds good.</p>
+      </div>
+      <div class="col mus">
+        <h3>🎹 Musician?</h3>
+        <p>It's a <b>polar sequencer</b>: radius ≈ pitch (quantized to the chosen key/scale), angle = phase. A Bézier arm sweeps and triggers notes on crossing. Give each note its own <b>orbit speed</b> (BPM-% or clock divisor) for polymetric patterns. Play the built-in synth, or route to your DAW/hardware via <b>Web MIDI</b> — pick a port in the Output menu (Chrome/Edge with a USB‑MIDI device; Bluefy on iOS).</p>
+      </div>
+    </div>
+    <div class="keys">
+      <span><kbd>Space</kbd> play/pause</span>
+      <span><kbd>1</kbd>–<kbd>9</kbd> load a song</span>
+      <span><kbd>Click</kbd> ring: add note</span>
+      <span><kbd>Drag</kbd> notes / handles</span>
+      <span><kbd>S</kbd> spin on/off</span>
+      <span><kbd>D</kbd> direction</span>
+      <span><kbd>[</kbd> <kbd>]</kbd> tempo −/+</span>
+      <span><kbd>Esc</kbd> deselect</span>
+      <span><kbd>Del</kbd> delete note</span>
+      <span><kbd>C</kbd> clear all</span>
+      <span><kbd>G</kbd> meter grid</span>
+      <span><kbd>K</kbd> keyboard</span>
+      <span><kbd>?</kbd> this help</span>
+    </div>
+    <button class="cta">▶ Start &amp; Play</button>
+    <div class="tiny2">Built-in synth + optional Web MIDI · live spectrum · original by Benn Jordan · web edition by Karl Meves / ERRERLabs · CC BY-NC 4.0</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ════════════════════════════════════════════════════════════════════
+   KIRLIAN ORBITS — Web Edition
+   A faithful re-imagining of Benn Jordan's circular MIDI sequencer,
+   ported to Canvas + the Web Audio API so it runs anywhere (esp. Mac)
+   by just opening this file — and makes sound on its own.
+
+   Trigger math, orbital model, Bezier sweep-arm and Kirlian aesthetic
+   mirror the original Python (sequencer.py / ui.py). Added on top:
+   a self-contained polyphonic synth and a radial FFT spectrum.
+   ──────────────────────────────────────────────────────────────────── */
+
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const SCALES = {
+  "Chromatic":[0,1,2,3,4,5,6,7,8,9,10,11],
+  "Major":[0,2,4,5,7,9,11],
+  "Minor":[0,2,3,5,7,8,10],
+  "Pentatonic Major":[0,2,4,7,9],
+  "Pentatonic Minor":[0,3,5,7,10],
+  "Blues":[0,3,5,6,7,10],
+  "Dorian":[0,2,3,5,7,9,10],
+  "Phrygian":[0,1,3,5,7,8,10],
+  "Lydian":[0,2,4,6,7,9,11],
+  "Mixolydian":[0,2,4,5,7,9,10],
+  "Locrian":[0,1,3,5,6,8,10],
+  "Harmonic Minor":[0,2,3,5,7,8,11],
+  "Melodic Minor":[0,2,3,5,7,9,11],
+  "Whole Tone":[0,2,4,6,8,10],
+  "Hijaz / Phrygian Dom":[0,1,4,5,7,8,10],
+  "Hungarian Minor":[0,2,3,6,7,8,11],
+  "Japanese In Sen":[0,1,5,7,8],
+  "Raga Bhairav":[0,1,4,5,7,8,11],
+  "Spanish Gypsy":[0,1,4,5,7,8,10],
+  "Acoustic / Lydian Dom":[0,2,4,6,7,9,10],
+  "Major Locrian":[0,2,4,5,6,8,10],
+  "Enigmatic":[0,1,4,6,8,10,11],
+};
+const TWO_PI = Math.PI * 2;
+
+const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
+const midiToName = m => NOTE_NAMES[((m % 12)+12)%12] + (Math.floor(m/12) - 1);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+/* ── Radius ⇄ pitch: one shared mapping so the ring's radius always means
+   pitch. Used when adding notes, when dragging them, and when laying out
+   the Music Box melodies — so they're all consistent (outer = higher). */
+const PITCH_LO = 48, PITCH_HI = 84;   // 3 octaves spanned by the ring
+function scalePitchList(key, scaleName) {
+  const intervals = SCALES[scaleName] || SCALES["Chromatic"];
+  const out = [];
+  for (let p = PITCH_LO; p <= PITCH_HI; p++) if (intervals.includes((((p - key) % 12) + 12) % 12)) out.push(p);
+  return out.length ? out : [60];
+}
+function pitchAtRadius(normR, key, scaleName) {
+  const ps = scalePitchList(key, scaleName);
+  return ps[clamp(Math.round(normR * (ps.length - 1)), 0, ps.length - 1)];
+}
+function radiusForPitch(midi, key, scaleName) {
+  const ps = scalePitchList(key, scaleName);
+  if (ps.length < 2) return 0.5;
+  let bi = 0, bd = Infinity;                       // nearest in-scale pitch
+  for (let i = 0; i < ps.length; i++) { const d = Math.abs(ps[i] - midi); if (d < bd) { bd = d; bi = i; } }
+  return bi / (ps.length - 1);                      // exact inverse of pitchAtRadius
+}
+
+// Bottom piano keyboard: spans the ring's pitch range (PITCH_LO..PITCH_HI).
+const WHITE_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);  // white-key pitch classes
+const PIANO_H = 76;                                  // keyboard strip height (px)
+const WHITE_KEYS = [];
+for (let m = PITCH_LO; m <= PITCH_HI; m++) if (WHITE_PCS.has(((m % 12) + 12) % 12)) WHITE_KEYS.push(m);
+
+/* ════════════════════════════════════════════════════════════════════
+   AUDIO ENGINE — the part the original deliberately left to a DAW.
+   Polyphonic, per-voice ADSR + filter, with a generated reverb so a
+   first-time Mac user hears something gorgeous immediately.
+   ──────────────────────────────────────────────────────────────────── */
+class SynthEngine {
+  constructor() {
+    this.ctx = null;
+    this.ready = false;
+    this.waveform = "pluck";
+    this.reverbMix = 0.38;
+  }
+  init() {
+    if (this.ready) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) { console.warn("Web Audio API is not supported in this browser."); return; }
+    this.ctx = new Ctx();
+
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.85;
+
+    // Analyser taps the full mix → drives the radial spectrum.
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 2048;
+    this.analyser.smoothingTimeConstant = 0.78;
+    this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+
+    // Dry path
+    this.dry = this.ctx.createGain();
+    // Wet path via generated-impulse convolver
+    this.conv = this.ctx.createConvolver();
+    this.conv.buffer = this._makeImpulse(2.6, 2.4);
+    this.wet = this.ctx.createGain();
+
+    this.master.connect(this.dry);
+    this.master.connect(this.conv);
+    this.conv.connect(this.wet);
+    this.dry.connect(this.analyser);
+    this.wet.connect(this.analyser);
+    this.analyser.connect(this.ctx.destination);
+
+    this.setReverb(this.reverbMix);
+    this.ready = true;
+  }
+  resume() { if (this.ctx && this.ctx.state === "suspended") this.ctx.resume(); }
+  setReverb(mix) {
+    this.reverbMix = mix;
+    if (!this.ready) return;
+    this.wet.gain.value = mix;
+    this.dry.gain.value = 1 - 0.45 * mix;
+  }
+  _makeImpulse(seconds, decay) {
+    const rate = this.ctx.sampleRate;
+    const len = Math.floor(rate * seconds);
+    const buf = this.ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+      }
+    }
+    return buf;
+  }
+  /* Fire a note. gateSec controls how long the envelope sustains. */
+  noteOn(midi, velocity, gateSec) {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    const freq = midiToFreq(midi);
+    const vel = clamp(velocity, 1, 127) / 127;
+    const g = clamp(gateSec, 0.05, 6);
+
+    const vca = this.ctx.createGain();
+    vca.gain.value = 0;
+    const filt = this.ctx.createBiquadFilter();
+    filt.type = "lowpass";
+
+    const oscs = [];
+    const wf = this.waveform;
+    if (wf === "supersaw") {
+      [-12, -5, 0, 5, 12].forEach(cents => {
+        const o = this.ctx.createOscillator();
+        o.type = "sawtooth"; o.frequency.value = freq; o.detune.value = cents;
+        oscs.push(o);
+      });
+      filt.frequency.value = 1200 + vel * 6000; filt.Q.value = 0.8;
+    } else if (wf === "bell") {
+      const carrier = this.ctx.createOscillator(); carrier.type = "sine"; carrier.frequency.value = freq;
+      const mod = this.ctx.createOscillator(); mod.type = "sine"; mod.frequency.value = freq * 2.01;
+      const modGain = this.ctx.createGain(); modGain.gain.value = freq * 1.4;
+      mod.connect(modGain); modGain.connect(carrier.frequency);
+      mod.start(t);
+      mod.stop(t + g + 1.2);
+      oscs.push(carrier);
+      filt.frequency.value = 6000; filt.Q.value = 0.4;
+    } else if (wf === "sine") {
+      const o = this.ctx.createOscillator(); o.type = "sine"; o.frequency.value = freq; oscs.push(o);
+      filt.frequency.value = 8000; filt.Q.value = 0.2;
+    } else { // "pluck" — two detuned saws through an env-swept filter
+      const o1 = this.ctx.createOscillator(); o1.type = "sawtooth"; o1.frequency.value = freq; o1.detune.value = -6;
+      const o2 = this.ctx.createOscillator(); o2.type = "sawtooth"; o2.frequency.value = freq; o2.detune.value = 7;
+      oscs.push(o1, o2);
+      const peak = clamp(freq * 6, 800, 9000);
+      filt.frequency.setValueAtTime(peak, t);
+      filt.frequency.exponentialRampToValueAtTime(Math.max(220, freq * 1.4), t + Math.min(0.5, g));
+      filt.Q.value = 3.5;
+    }
+
+    oscs.forEach(o => { o.connect(filt); });
+    filt.connect(vca);
+    vca.connect(this.master);
+
+    // ADSR — clamp attack/decay inside very short gates so envelope
+    // events stay strictly chronological (out-of-order scheduling pops).
+    const peakGain = 0.28 * vel;
+    const atk = 0.006, dec = 0.09, sus = peakGain * 0.6;
+    vca.gain.cancelScheduledValues(t);
+    vca.gain.setValueAtTime(0, t);
+    const atkTime = Math.min(atk, g * 0.1);
+    const decTime = Math.min(atk + dec, g * 0.9);
+    vca.gain.linearRampToValueAtTime(peakGain, t + atkTime);
+    vca.gain.linearRampToValueAtTime(sus, t + decTime);
+    const rel = 0.18;
+    vca.gain.setValueAtTime(Math.max(sus, 0.0001), t + g);
+    vca.gain.exponentialRampToValueAtTime(0.0001, t + g + rel);
+
+    oscs.forEach(o => { o.start(t); o.stop(t + g + rel + 0.05); });
+    oscs[oscs.length - 1].onended = () => { try { vca.disconnect(); filt.disconnect(); } catch(e){} };
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MODEL — Note + Sequencer (ported from sequencer.py)
+   Handles stored normalised to clock radius so it's resolution-free.
+   ──────────────────────────────────────────────────────────────────── */
+class Note {
+  constructor(normR, angle, midi) {
+    this.normR = normR;            // 0..1
+    this.polarAngle = angle;       // radians, 0 = up, +CW
+    this.prevAngle = angle;
+    this.midi = midi;
+    this.velocity = 100;
+    this.gate = 0.5;               // beats
+    this.orbitMode = 0;            // 0 = BPM %, 1 = sync divisor
+    this.orbitSpeed = 100;         // % (mode 0) or divisor (mode 1)
+    this.flash = 0;
+    this.radius = 19;              // visual px
+    this.initNormR = normR;
+    this.initAngle = angle;
+  }
+  get name() { return midiToName(this.midi); }
+}
+
+class Sequencer {
+  constructor() {
+    this.notes = [];
+    this.bpm = 120;
+    this.isPlaying = false;
+    // Handles normalised to clock radius (P0 fixed at center 0,0).
+    // A gentle default curve so the spin DIRECTION reads at a glance
+    // (a straight arm looks identical rotating either way).
+    this.handles = [[0.17,-0.30],[0.11,-0.66],[0,-1.00]];
+    this.spinning = true;
+    this.dir = 1;                  // 1 = CW, -1 = CCW
+    this.sweepAngle = 0;
+    this.prevSweep = 0;
+    this.R = 250;                  // clock radius px (set each frame)
+    this._addDemo();
+  }
+  _addDemo() {
+    // A C-major-ish chord spread across orbital rings, clock-divisor synced.
+    const mk = (r, ang, midi, div) => { const n = new Note(r, ang, midi); n.orbitMode = 1; n.orbitSpeed = div; return n; };
+    this.notes.push(mk(0.34, 0,        60, 1)); // C4 inner, fastest
+    this.notes.push(mk(0.58, Math.PI*0.66, 64, 2)); // E4
+    this.notes.push(mk(0.80, Math.PI*1.33, 67, 4)); // G4
+    this.notes.push(mk(0.94, Math.PI*1.0,  72, 8)); // C5 outer, slowest
+  }
+  pitchFromRadius(normR, key, scaleName) {
+    return pitchAtRadius(normR, key, scaleName);
+  }
+  addNote(rx, ry, key, scaleName) {
+    const dist = Math.hypot(rx, ry);
+    const normR = clamp(dist / this.R, 0.05, 1);
+    const angle = (Math.atan2(ry, rx) + Math.PI/2 + TWO_PI) % TWO_PI;
+    const midi = this.pitchFromRadius(normR, key, scaleName);
+    const n = new Note(normR, angle, midi);
+    n.orbitMode = 0; n.orbitSpeed = 100;
+    this.notes.push(n);
+    return n;
+  }
+  /* Snap every existing note to the nearest pitch in the chosen key/scale,
+     so changing Key or Scale instantly re-tunes the whole pattern. */
+  requantize(key, scaleName) {
+    const intervals = SCALES[scaleName] || SCALES["Chromatic"];
+    const inScale = m => intervals.includes((((m - key) % 12) + 12) % 12);
+    for (const n of this.notes) {
+      if (inScale(n.midi)) continue;
+      let best = n.midi;
+      for (let d = 1; d <= 6; d++) {
+        const down = n.midi - d, up = n.midi + d;
+        if (down >= 0 && inScale(down)) { best = down; break; }
+        if (up <= 127 && inScale(up)) { best = up; break; }
+      }
+      n.midi = best;
+    }
+  }
+  remove(n) { const i = this.notes.indexOf(n); if (i >= 0) this.notes.splice(i,1); }
+  clear() { this.notes = []; }
+  start() {
+    if (this.isPlaying) return;
+    this.isPlaying = true;
+    this.prevSweep = this.sweepAngle;
+    this.notes.forEach(n => n.prevAngle = n.polarAngle);
+  }
+  stop() { this.isPlaying = false; }
+
+  bezierPoints(ang) {
+    let [h1,h2,h3] = this.handles;
+    if (this.spinning) {
+      const c = Math.cos(ang), s = Math.sin(ang);
+      const rot = h => [h[0]*c - h[1]*s, h[0]*s + h[1]*c];
+      h1 = rot(h1); h2 = rot(h2); h3 = rot(h3);
+    }
+    const R = this.R, pts = [], steps = 80;
+    for (let i = 0; i <= steps; i++) {
+      const t = i/steps, mt = 1-t;
+      const bx = (3*mt*mt*t*h1[0] + 3*mt*t*t*h2[0] + t*t*t*h3[0]) * R;
+      const by = (3*mt*mt*t*h1[1] + 3*mt*t*t*h2[1] + t*t*t*h3[1]) * R;
+      pts.push([bx, by]);
+    }
+    return pts;
+  }
+  splineAngleAt(normR, pts) {
+    const target = normR * this.R;
+    let best = null, min = Infinity;
+    for (const p of pts) {
+      const pr = Math.hypot(p[0], p[1]);
+      const d = Math.abs(pr - target);
+      if (d < min) { min = d; best = p; }
+    }
+    if (!best) return 0;
+    return (Math.atan2(best[1], best[0]) + Math.PI/2 + TWO_PI) % TWO_PI;
+  }
+  _crossed(start, end) {
+    start = ((start % TWO_PI)+TWO_PI)%TWO_PI;
+    end   = ((end   % TWO_PI)+TWO_PI)%TWO_PI;
+    const diff = ((end - start) % TWO_PI + TWO_PI) % TWO_PI;
+    if (diff === 0) return false;
+    const targetShift = ((TWO_PI - start) % TWO_PI + TWO_PI) % TWO_PI;
+    return diff < Math.PI ? (targetShift <= diff) : (targetShift >= diff);
+  }
+  update(dt, out) {
+    for (const n of this.notes) if (n.flash > 0) n.flash = Math.max(0, n.flash - dt * 3.2);
+    if (!this.isPlaying) return [];
+
+    const omegaBase = (Math.PI * this.bpm) / 120; // one rotation = 4 beats
+    if (this.spinning) {
+      this.prevSweep = this.sweepAngle;
+      this.sweepAngle = ((this.sweepAngle + this.dir * omegaBase * dt) % TWO_PI + TWO_PI) % TWO_PI;
+    }
+    const ptsCurr = this.bezierPoints(this.sweepAngle);
+    const ptsPrev = this.bezierPoints(this.prevSweep);
+    const fired = [];
+
+    for (const n of this.notes) {
+      let omega;
+      if (n.orbitMode === 0) omega = omegaBase * (n.orbitSpeed / 100);
+      else omega = omegaBase / Math.max(1, n.orbitSpeed);
+
+      n.prevAngle = n.polarAngle;
+      n.polarAngle = (n.polarAngle + omega * dt) % TWO_PI;
+
+      const sCurr = this.splineAngleAt(n.normR, ptsCurr);
+      const sPrev = this.splineAngleAt(n.normR, ptsPrev);
+      const relPrev = ((n.prevAngle - sPrev) % TWO_PI + TWO_PI) % TWO_PI;
+      const relCurr = ((n.polarAngle - sCurr) % TWO_PI + TWO_PI) % TWO_PI;
+
+      if (this._crossed(relPrev, relCurr)) {
+        const gateSec = n.gate * (60 / this.bpm);
+        out.noteOn(n.midi, n.velocity, gateSec);
+        n.flash = 1;
+        fired.push(n);
+      }
+    }
+    return fired;
+  }
+  straighten() { this.handles = [[0,-0.30],[0,-0.65],[0,-1.00]]; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   APP — wiring, input, rendering
+   ──────────────────────────────────────────────────────────────────── */
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const synth = new SynthEngine();
+const seq = new Sequencer();
+
+/* ── Web MIDI output ─────────────────────────────────────────────────
+   Optional: in browsers that expose the Web MIDI API (Chrome, Edge, and
+   Bluefy on iOS), route notes out to a hardware/virtual MIDI port — i.e.
+   the web edition can drive a real synth or DAW, just like the original.
+   Primary path: desktop Chrome/Edge with a USB‑MIDI interface or device;
+   Bluefy provides it on iOS. Picking a MIDI port routes there exclusively
+   (the built-in synth is muted so the DAW gets a clean signal). Default
+   stays the built-in synth.
+   ──────────────────────────────────────────────────────────────────── */
+const midiOut = {
+  access: null,
+  ports: [],
+  port: null,        // selected MIDIOutput, or null = use built-in synth
+  channel: 0,        // 0-15
+  get enabled() { return !!this.port; },
+  async init() {
+    if (this.access || !navigator.requestMIDIAccess) return;
+    try {
+      this.access = await navigator.requestMIDIAccess({ sysex: false });
+      this.access.onstatechange = () => this.refresh();
+      this.refresh();
+    } catch (e) {
+      console.warn("Web MIDI unavailable:", e);
+    }
+  },
+  refresh() {
+    this.ports = this.access ? Array.from(this.access.outputs.values()) : [];
+    if (this.port && !this.ports.some(p => p.id === this.port.id)) this.port = null; // unplugged
+    if (typeof buildOutputOptions === "function") buildOutputOptions();
+  },
+  setPort(id) { this.port = this.ports.find(p => p.id === id) || null; },
+  noteOn(midi, velocity, gateSec, channel = this.channel) {
+    if (!this.port) return;
+    const ch = channel & 0x0f;
+    const n = clamp(midi | 0, 0, 127);
+    const v = clamp(velocity | 0, 0, 127);
+    this.port.send([0x90 | ch, n, v]);                                   // note on
+    this.port.send([0x80 | ch, n, 0], performance.now() + gateSec * 1000); // scheduled note off
+  },
+};
+
+// Output router: the sequencer fires through this; it picks MIDI or the synth.
+const out = {
+  noteOn(midi, velocity, gateSec) {
+    if (midiOut.enabled) midiOut.noteOn(midi, velocity, gateSec);
+    else synth.noteOn(midi, velocity, gateSec);
+  },
+};
+
+let W = 0, H = 0, DPR = 1;
+let center = [0,0], R = 250;
+let selected = null, dragNote = null, dragHandle = null;
+let curKey = 0, curScale = "Major", showSpectrum = true;
+let showGrid = true, showKeys = true;
+const keyFlash = {};   // midi -> 0..1 glow for manually-pressed piano keys
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // Layout is independent of the editor panel, so the orbit never jumps
+  // when the panel slides in/out (the panel simply overlays the canvas).
+  // Reserve the top bar and (when shown) the bottom keyboard strip.
+  const topBar = 110, bottom = showKeys ? PIANO_H + 8 : 24;
+  center = [W / 2, topBar + (H - topBar - bottom) / 2];
+  R = Math.max(110, Math.min(W/2 - 90, (H - topBar - bottom) / 2 - 20));
+  seq.R = R;
+  // Keep the bottom hint/credit just above the keyboard.
+  const hb = (showKeys ? PIANO_H + 8 : 10) + "px";
+  el("hint").style.bottom = hb;
+  el("credit").style.bottom = hb;
+  el("tips").style.bottom = (showKeys ? PIANO_H + 14 : 42) + "px";
+}
+window.addEventListener("resize", resize);
+
+/* ── Pointer interaction ───────────────────────────────────────────── */
+function localPos(e) {
+  const r = cv.getBoundingClientRect();
+  return [e.clientX - r.left, e.clientY - r.top];
+}
+cv.addEventListener("mousedown", e => {
+  if (e.button !== 0) return;
+  const [mx, my] = localPos(e);
+  if (my < 64) return; // top bar zone
+  // Bottom piano: click a key to audition that pitch.
+  if (showKeys && my > H - PIANO_H) {
+    const m = pianoKeyAt(mx, my);
+    if (m != null) { beginIfNeeded(); out.noteOn(m, 110, 0.35); keyFlash[m] = 1; }
+    return;
+  }
+  const rx = mx - center[0], ry = my - center[1];
+
+  // 1. sweep-arm handles (rotated when spinning)
+  let hs = seq.handles.map(h => [h[0]*R, h[1]*R]);
+  if (seq.spinning) {
+    const c = Math.cos(seq.sweepAngle), s = Math.sin(seq.sweepAngle);
+    hs = hs.map(h => [h[0]*c - h[1]*s, h[0]*s + h[1]*c]);
+  }
+  for (let i = 0; i < hs.length; i++) {
+    if (Math.hypot(rx - hs[i][0], ry - hs[i][1]) <= 13) {
+      dragHandle = i; selectNote(null); return;
+    }
+  }
+  // 2. existing notes
+  for (const n of seq.notes) {
+    const vr = n.normR * R;
+    const nx = vr * Math.sin(n.polarAngle), ny = -vr * Math.cos(n.polarAngle);
+    if (Math.hypot(rx - nx, ry - ny) <= n.radius + 4) {
+      selectNote(n); dragNote = n; return;
+    }
+  }
+  // 3. empty space: inside the ring → add a note (the panel stays put and
+  //    just swaps to the new note); outside the ring → dismiss the editor.
+  if (Math.hypot(rx, ry) <= R + 22) {
+    const n = seq.addNote(rx, ry, curKey, curScale);
+    selectNote(n);
+  } else if (selected) {
+    selectNote(null);
+  }
+});
+window.addEventListener("mousemove", e => {
+  if (dragHandle === null && !dragNote) return;
+  const [mx, my] = localPos(e);
+  let rx = mx - center[0], ry = my - center[1];
+  if (dragHandle !== null) {
+    const dist = Math.hypot(rx, ry);
+    if (dist > R) { rx = rx/dist*R; ry = ry/dist*R; }
+    let bx = rx, by = ry;
+    if (seq.spinning) { // un-rotate so handle stays put in base frame
+      const c = Math.cos(-seq.sweepAngle), s = Math.sin(-seq.sweepAngle);
+      bx = rx*c - ry*s; by = rx*s + ry*c;
+    }
+    seq.handles[dragHandle] = [bx/R, by/R];
+  } else if (dragNote) {
+    const dist = Math.hypot(rx, ry);
+    dragNote.normR = clamp(dist / R, 0.05, 1);
+    dragNote.polarAngle = (Math.atan2(ry, rx) + Math.PI/2 + TWO_PI) % TWO_PI;
+    // Radius means pitch: dragging in/out retunes the note (snapped to key);
+    // moving it purely around the ring keeps the pitch and just shifts phase.
+    dragNote.midi = pitchAtRadius(dragNote.normR, curKey, curScale);
+    if (dragNote === selected) syncPanel();
+  }
+});
+window.addEventListener("mouseup", () => { dragNote = null; dragHandle = null; });
+
+/* ── Note editor panel ─────────────────────────────────────────────── */
+const panel = document.getElementById("panel");
+const el = id => document.getElementById(id);
+function selectNote(n) {
+  selected = n;
+  if (n) { panel.classList.add("open"); syncPanel(); }
+  else { panel.classList.remove("open"); }
+}
+function syncPanel() {
+  const n = selected; if (!n) return;
+  el("pNoteName").textContent = "Note: " + n.name;
+  el("pPitch").value = n.midi; el("pPitchVal").textContent = n.name;
+  el("pVel").value = n.velocity; el("pVelVal").textContent = n.velocity;
+  el("pGate").value = n.gate; el("pGateVal").textContent = n.gate.toFixed(2);
+  const m = el("pMode"), sp = el("pSpeed");
+  if (n.orbitMode === 0) {
+    m.textContent = "Mode: BPM %"; m.classList.add("on");
+    el("pSpeedLbl").textContent = "Orbit Speed";
+    sp.min = 10; sp.max = 400; sp.step = 1; sp.value = n.orbitSpeed;
+    el("pSpeedVal").textContent = n.orbitSpeed + "%";
+  } else {
+    m.textContent = "Mode: Sync Divisor"; m.classList.remove("on");
+    el("pSpeedLbl").textContent = "Clock Divisor";
+    sp.min = 1; sp.max = 16; sp.step = 1; sp.value = n.orbitSpeed;
+    el("pSpeedVal").textContent = "/" + n.orbitSpeed;
+  }
+}
+el("pPitch").oninput = e => { if (selected){ selected.midi = +e.target.value; el("pPitchVal").textContent = selected.name; } };
+el("pVel").oninput   = e => { if (selected){ selected.velocity = +e.target.value; el("pVelVal").textContent = selected.velocity; } };
+el("pGate").oninput  = e => { if (selected){ selected.gate = +e.target.value; el("pGateVal").textContent = selected.gate.toFixed(2); } };
+el("pMode").onclick  = () => { if (selected){ selected.orbitMode = 1 - selected.orbitMode; selected.orbitSpeed = selected.orbitMode === 0 ? 100 : 2; syncPanel(); } };
+el("pSpeed").oninput = e => {
+  if (!selected) return;
+  selected.orbitSpeed = +e.target.value;
+  el("pSpeedVal").textContent = selected.orbitMode === 0 ? selected.orbitSpeed + "%" : "/" + selected.orbitSpeed;
+};
+el("pDelete").onclick = () => { if (selected){ seq.remove(selected); selectNote(null); } };
+
+/* ── Top bar controls ──────────────────────────────────────────────── */
+const playBtn = el("playBtn");
+function setPlay(on) {
+  if (on) { synth.init(); synth.resume(); seq.start(); playBtn.textContent = "❚❚ PAUSE"; playBtn.classList.add("on"); }
+  else { seq.stop(); playBtn.textContent = "▶ PLAY"; playBtn.classList.remove("on"); }
+}
+playBtn.onclick = () => setPlay(!seq.isPlaying);
+el("clearBtn").onclick = () => { seq.clear(); selectNote(null); };
+el("bpm").oninput = e => { seq.bpm = +e.target.value; el("bpmVal").textContent = seq.bpm; };
+function updateSpinBtn() { const b = el("spinBtn"); b.textContent = "SPIN: " + (seq.spinning ? "ON" : "OFF"); b.classList.toggle("on", seq.spinning); }
+function updateDirBtn() { el("dirBtn").textContent = "DIR: " + (seq.dir === 1 ? "CW" : "CCW"); }
+el("spinBtn").onclick = () => { seq.spinning = !seq.spinning; if (!seq.spinning) seq.sweepAngle = 0; updateSpinBtn(); };
+el("dirBtn").onclick = () => { seq.dir = -seq.dir; updateDirBtn(); };
+el("specBtn").onclick = e => { showSpectrum = !showSpectrum; e.target.classList.toggle("on", showSpectrum); };
+el("gridBtn").onclick = e => { showGrid = !showGrid; e.target.classList.toggle("on", showGrid); };
+el("keysBtn").onclick = e => { showKeys = !showKeys; e.target.classList.toggle("on", showKeys); resize(); };
+el("waveSel").onchange = e => synth.waveform = e.target.value;
+el("reverb").oninput = e => synth.setReverb(+e.target.value / 100);
+function setTempo(v) { seq.bpm = clamp(Math.round(v), 20, 300); el("bpm").value = seq.bpm; el("bpmVal").textContent = seq.bpm; }
+
+// Output routing (built-in synth or a Web MIDI port)
+const outSel = el("outSel");
+function buildOutputOptions() {
+  const current = midiOut.port ? midiOut.port.id : "synth";
+  outSel.innerHTML = "";
+  const synthOpt = document.createElement("option");
+  synthOpt.value = "synth"; synthOpt.textContent = "🔊 Built-in Synth";
+  outSel.appendChild(synthOpt);
+  for (const p of midiOut.ports) {
+    const o = document.createElement("option");
+    o.value = p.id; o.textContent = "🎹 " + (p.name || p.id);
+    outSel.appendChild(o);
+  }
+  outSel.value = midiOut.ports.some(p => p.id === current) ? current : "synth";
+}
+outSel.onchange = e => midiOut.setPort(e.target.value); // "synth" matches no port → built-in
+
+// populate selects
+const keySel = el("keySel"), scaleSel = el("scaleSel");
+NOTE_NAMES.forEach((nm,i) => { const o = document.createElement("option"); o.value = i; o.textContent = nm; keySel.appendChild(o); });
+Object.keys(SCALES).forEach(nm => { const o = document.createElement("option"); o.value = nm; o.textContent = nm; if (nm===curScale) o.selected = true; scaleSel.appendChild(o); });
+keySel.onchange = e => { curKey = +e.target.value; seq.requantize(curKey, curScale); if (selected) syncPanel(); };
+scaleSel.onchange = e => { curScale = e.target.value; seq.requantize(curKey, curScale); if (selected) syncPanel(); };
+
+/* ── Starter songs ───────────────────────────────────────────────────
+   Soundscapes: generative orbital patterns (notes orbit + arm spins).
+   Music Box: famous public-domain melodies laid out like a music-box
+   cylinder — notes sit at one radius, the spin is OFF, and the fixed arm
+   at 12 o'clock reads each note as it orbits past (plays the tune in
+   order, then loops). `box()` turns [midi, beat] pairs into that ring.
+   ──────────────────────────────────────────────────────────────────── */
+const box = (arr, loopBeats, key, scaleName, gate = 0.4) => {
+  const beats = loopBeats || 1; // guard against a falsy/zero loop length
+  // angle = time position (reversed so the clockwise orbit reads forward),
+  // radius = pitch — so the melody's up-and-down contour is visible as the
+  // notes spiral, and it stays consistent with click-to-add and dragging.
+  return arr.map(([midi, t]) => ({ r: radiusForPitch(midi, key, scaleName), ang: 1 - t / beats, midi, speed: 100, gate }));
+};
+
+const PRESETS = {
+  "✨ Kirlian Bloom": {
+    group:"Soundscapes", bpm:120, key:0, scale:"Major", wave:"bell", reverb:0.42, dir:1,
+    notes:[
+      {r:0.34, ang:0.00, midi:60, div:1},
+      {r:0.58, ang:0.66, midi:64, div:2},
+      {r:0.80, ang:0.33, midi:67, div:4},
+      {r:0.94, ang:0.50, midi:72, div:8, gate:1.0},
+    ]},
+  "🌌 Deep Space Pad": {
+    group:"Soundscapes", bpm:68, key:0, scale:"Major", wave:"sine", reverb:0.62, dir:1,
+    notes:[
+      {r:0.40, ang:0.00, midi:48, div:4, vel:72, gate:1.6},
+      {r:0.58, ang:0.50, midi:55, div:8, vel:64, gate:1.8},
+      {r:0.74, ang:0.25, midi:60, div:8, vel:60, gate:1.8},
+      {r:0.90, ang:0.75, midi:64, div:6, vel:55, gate:2.0},
+    ]},
+  "💫 Starlight Cascade": {
+    group:"Soundscapes", bpm:108, key:0, scale:"Pentatonic Major", wave:"pluck", reverb:0.50, dir:1,
+    notes:[
+      {r:0.28, ang:0.00, midi:72, div:1},
+      {r:0.40, ang:0.16, midi:74, div:2},
+      {r:0.52, ang:0.33, midi:76, div:2},
+      {r:0.64, ang:0.50, midi:79, div:4},
+      {r:0.78, ang:0.66, midi:81, div:4},
+      {r:0.90, ang:0.83, midi:84, div:8},
+    ]},
+  "🔮 Neon Arpeggio": {
+    group:"Soundscapes", bpm:128, key:9, scale:"Minor", wave:"supersaw", reverb:0.30, dir:1,
+    notes:[
+      {r:0.30, ang:0.00, midi:57, div:1},
+      {r:0.46, ang:0.33, midi:60, div:1},
+      {r:0.62, ang:0.66, midi:64, div:2},
+      {r:0.78, ang:0.16, midi:69, div:2},
+      {r:0.92, ang:0.50, midi:72, div:4},
+    ]},
+  "🌀 Hypno Pulse": {
+    group:"Soundscapes", bpm:124, key:0, scale:"Minor", wave:"pluck", reverb:0.26, dir:1,
+    notes:[
+      {r:0.26, ang:0.00, midi:36, div:1, gate:0.3},
+      {r:0.44, ang:0.50, midi:48, div:2, gate:0.3},
+      {r:0.60, ang:0.25, midi:51, div:4},
+      {r:0.74, ang:0.75, midi:55, div:4},
+      {r:0.90, ang:0.00, midi:60, div:8},
+    ]},
+
+  // ── Music Box: famous public-domain melodies (spin off, fixed reader) ──
+  "🎵 Twinkle, Twinkle": {
+    group:"Music Box (famous tunes)", bpm:46, key:0, scale:"Major", wave:"bell", reverb:0.46, spin:false, straight:true,
+    notes: box([[60,0],[60,1],[67,2],[67,3],[69,4],[69,5],[67,6],[65,8],[65,9],[64,10],[64,11],[62,12],[62,13],[60,14]], 16, 0, "Major") },
+  "🎵 Ode to Joy": {
+    group:"Music Box (famous tunes)", bpm:48, key:0, scale:"Major", wave:"bell", reverb:0.46, spin:false, straight:true,
+    notes: box([[64,0],[64,1],[65,2],[67,3],[67,4],[65,5],[64,6],[62,7],[60,8],[60,9],[62,10],[64,11],[64,12],[62,13],[62,14]], 16, 0, "Major") },
+  "🎵 Für Elise": {
+    group:"Music Box (famous tunes)", bpm:54, key:0, scale:"Chromatic", wave:"bell", reverb:0.44, spin:false, straight:true,
+    notes: box([[76,0],[75,1],[76,2],[75,3],[76,4],[71,5],[74,6],[72,7],[69,8],[60,10],[64,11],[69,12],[71,13],[64,15],[68,16],[71,17],[72,18]], 20, 0, "Chromatic") },
+  "🎵 Greensleeves": {
+    group:"Music Box (famous tunes)", bpm:44, key:9, scale:"Minor", wave:"bell", reverb:0.48, spin:false, straight:true,
+    notes: box([[57,0],[60,1],[62,2],[64,3],[65,4],[64,5],[62,6],[59,7],[55,8],[57,9],[59,10],[57,11],[57,12]], 14, 9, "Minor") },
+};
+const STRAIGHT_ARM = [[0,-0.30],[0,-0.65],[0,-1.00]];
+const CURVED_ARM   = [[0.17,-0.30],[0.11,-0.66],[0,-1.00]];
+const presetSel = el("presetSel");
+const presetGroups = {};
+Object.keys(PRESETS).forEach(name => { const g = PRESETS[name].group || "Presets"; (presetGroups[g] = presetGroups[g] || []).push(name); });
+Object.keys(presetGroups).forEach(g => {
+  const og = document.createElement("optgroup"); og.label = g;
+  presetGroups[g].forEach(name => { const o = document.createElement("option"); o.value = name; o.textContent = name; og.appendChild(o); });
+  presetSel.appendChild(og);
+});
+function loadPreset(name) {
+  const p = PRESETS[name]; if (!p) return;
+  presetSel.value = name;   // keep the dropdown in sync (incl. programmatic loads)
+  seq.notes = [];
+  seq.bpm = p.bpm; el("bpm").value = p.bpm; el("bpmVal").textContent = p.bpm;
+  curKey = p.key; keySel.value = p.key;
+  curScale = p.scale; scaleSel.value = p.scale;
+  synth.waveform = p.wave; el("waveSel").value = p.wave;
+  synth.setReverb(p.reverb); el("reverb").value = Math.round(p.reverb * 100);
+  seq.spinning = p.spin !== false; updateSpinBtn();
+  seq.dir = p.dir || 1; updateDirBtn();
+  seq.handles = (p.straight ? STRAIGHT_ARM : CURVED_ARM).map(h => h.slice());
+  seq.sweepAngle = 0;
+  for (const nd of p.notes) {
+    const n = new Note(nd.r, (nd.ang || 0) * TWO_PI, nd.midi);
+    n.orbitMode = nd.div ? 1 : 0;
+    n.orbitSpeed = nd.div || nd.speed || 100;
+    n.velocity = nd.vel || 100;
+    n.gate = nd.gate || 0.5;
+    seq.notes.push(n);
+  }
+  selectNote(null);
+}
+presetSel.onchange = e => { if (e.target.value) { beginIfNeeded(); loadPreset(e.target.value); setPlay(true); e.target.value = ""; } };
+
+/* ── Keyboard ──────────────────────────────────────────────────────── */
+window.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.code === "Space") { e.preventDefault(); beginIfNeeded(); setPlay(!seq.isPlaying); }
+  else if (e.code === "Delete" || e.code === "Backspace") { if (selected){ seq.remove(selected); selectNote(null); } }
+  else if (e.key === "c" || e.key === "C") { seq.clear(); selectNote(null); }
+  else if (e.code === "Escape") { selectNote(null); }
+  else if (e.key === "s" || e.key === "S") { el("spinBtn").click(); }
+  else if (e.key === "d" || e.key === "D") { el("dirBtn").click(); }
+  else if (e.code === "BracketLeft")  { setTempo(seq.bpm - 4); }
+  else if (e.code === "BracketRight") { setTempo(seq.bpm + 4); }
+  else if (e.key === "?" || e.key === "h" || e.key === "H") { startOverlay.classList.remove("hidden"); }
+  else if (e.key === "g" || e.key === "G") { el("gridBtn").click(); }
+  else if (e.key === "k" || e.key === "K") { el("keysBtn").click(); }
+  else if (e.code.startsWith("Digit")) {
+    const idx = parseInt(e.code.slice(5), 10) - 1;            // 1-9 → preset index
+    const names = Object.keys(PRESETS);
+    if (idx >= 0 && idx < names.length) { beginIfNeeded(); loadPreset(names[idx]); setPlay(true); }
+  }
+});
+
+/* ── Start gate, welcome & tips ────────────────────────────────────── */
+const startOverlay = el("start");
+const tips = el("tips");
+let started = false;
+const DEFAULT_PRESET = "💫 Starlight Cascade"; // sounds gorgeous on first load
+function beginIfNeeded() {            // idempotent: dismiss overlay + wake audio
+  if (started) return;
+  started = true;
+  startOverlay.classList.add("hidden");
+  synth.init(); synth.resume();
+  midiOut.init();   // ask for Web MIDI access (no-op where unsupported)
+}
+startOverlay.addEventListener("click", (e) => {
+  if (e.target.closest(".col")) return;   // let users read/select the text columns
+  const first = !started;
+  beginIfNeeded();
+  startOverlay.classList.add("hidden");
+  if (first) { loadPreset(DEFAULT_PRESET); setPlay(true); showTips(); }
+});
+function showTips() { tips.classList.remove("hidden"); }
+tips.querySelector(".close").onclick = () => tips.classList.add("hidden");
+el("helpBtn").onclick = () => startOverlay.classList.remove("hidden");
+
+/* ════════════════════════════════════════════════════════════════════
+   RENDER LOOP
+   ──────────────────────────────────────────────────────────────────── */
+let last = performance.now();
+let bgStars = [];
+function makeStars() {
+  bgStars = [];
+  for (let i = 0; i < 90; i++) bgStars.push([Math.random(), Math.random(), Math.random()*1.6+0.3]);
+}
+makeStars();
+
+let specHue = 0;
+const SPEC_BINS = 160;
+const specPeaks = new Float32Array(SPEC_BINS);
+function drawSpectrum() {
+  if (!synth.ready || !showSpectrum) return;
+  synth.analyser.getByteFrequencyData(synth.freqData);
+  const data = synth.freqData;
+  const usable = Math.floor(data.length * 0.6);
+  specHue = (specHue + 0.25) % 360;       // slow chromatic drift
+  const bloom = R * 0.5;
+  ctx.save();
+  ctx.translate(center[0], center[1]);
+  ctx.rotate(-seq.sweepAngle * 0.12);      // the spectrum gently *spins*
+  ctx.globalCompositeOperation = "lighter"; // additive neon glow
+  ctx.lineCap = "round";
+  for (let i = 0; i < SPEC_BINS; i++) {
+    const frac = i / SPEC_BINS;
+    // perceptual mapping: spread the energy-dense low frequencies outward
+    const di = Math.min(usable - 1, Math.floor(Math.pow(frac, 1.7) * usable));
+    let v = data[di] / 255;
+    v = Math.pow(v, 1.25);
+    // falling peak-hold
+    if (v > specPeaks[i]) specPeaks[i] = v;
+    else specPeaks[i] = Math.max(v, specPeaks[i] - 0.011);
+
+    const a = frac * TWO_PI - Math.PI / 2;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const inner = R + 5;
+    const hue = (frac * 280 + specHue) % 360;
+    const w = (TWO_PI * inner / SPEC_BINS) * 0.9;
+
+    if (v > 0.012) {
+      const outer = inner + v * bloom;
+      // solid alpha-scaled stroke — avoids allocating a gradient per bar
+      // per frame (160 × 60fps of GC churn); 'lighter' keeps it glowing.
+      ctx.strokeStyle = `hsla(${hue}, 96%, 66%, ${0.18 + v * 0.78})`;
+      ctx.lineWidth = w;
+      ctx.beginPath(); ctx.moveTo(ca*inner, sa*inner); ctx.lineTo(ca*outer, sa*outer); ctx.stroke();
+      // soft inward reflection toward the core
+      const rin = inner - v * bloom * 0.45;
+      ctx.strokeStyle = `hsla(${hue},90%,62%,0.10)`; ctx.lineWidth = w * 0.8;
+      ctx.beginPath(); ctx.moveTo(ca*inner, sa*inner); ctx.lineTo(ca*rin, sa*rin); ctx.stroke();
+    }
+    // bright falling peak cap
+    const p = specPeaks[i];
+    if (p > 0.05) {
+      const pr = inner + p * bloom;
+      ctx.fillStyle = `hsla(${(hue+30)%360},100%,85%,0.85)`;
+      ctx.beginPath(); ctx.arc(ca*pr, sa*pr, w * 0.3, 0, TWO_PI); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/* ── Meter grid: clock = one 4/4 bar (4 beats). Spokes mark the beats and
+   faint ticks mark 16th notes, so you can see roughly where to click. ── */
+function drawGrid() {
+  if (!showGrid) return;
+  const [cx, cy] = center, beats = 4, subs = 4;
+  ctx.save();
+  for (let i = 0; i < beats * subs; i++) {
+    if (i % subs === 0) continue;                 // beat spokes drawn separately
+    const a = (i / (beats * subs)) * TWO_PI - Math.PI / 2;
+    ctx.strokeStyle = "rgba(120,130,160,0.16)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * R * 0.88, cy + Math.sin(a) * R * 0.88);
+    ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+    ctx.stroke();
+  }
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (let b = 0; b < beats; b++) {
+    const a = (b / beats) * TWO_PI - Math.PI / 2;
+    ctx.strokeStyle = "rgba(189,147,249,0.20)"; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * R * 0.10, cy + Math.sin(a) * R * 0.10);
+    ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(189,147,249,0.55)"; ctx.font = "bold 12px sans-serif";
+    ctx.fillText(String(b + 1), cx + Math.cos(a) * R * 0.2, cy + Math.sin(a) * R * 0.2);
+  }
+  ctx.restore();
+}
+
+// Which piano key is under a point in the bottom strip (black keys first).
+function pianoKeyAt(mx, my) {
+  const y0 = H - PIANO_H;
+  if (my < y0) return null;
+  const ww = W / WHITE_KEYS.length;
+  if (my < y0 + PIANO_H * 0.6) {
+    for (let m = PITCH_LO; m <= PITCH_HI; m++) {
+      if (WHITE_PCS.has(((m % 12) + 12) % 12)) continue;
+      const wb = WHITE_KEYS.indexOf(m - 1); if (wb < 0) continue;
+      const x = (wb + 1) * ww - ww * 0.3, bw = ww * 0.6;
+      if (mx >= x && mx <= x + bw) return m;
+    }
+  }
+  return WHITE_KEYS[clamp(Math.floor(mx / ww), 0, WHITE_KEYS.length - 1)];
+}
+
+/* ── Bottom piano keyboard: a familiar view of which pitches are firing.
+   Keys glow (emerald) as notes trigger, and clicking one auditions it. ── */
+function drawPiano() {
+  if (!showKeys) return;
+  const y0 = H - PIANO_H, ww = W / WHITE_KEYS.length;
+  const lit = {};
+  for (const n of seq.notes) if (n.flash > 0.04) lit[n.midi] = Math.max(lit[n.midi] || 0, n.flash);
+  for (const m in keyFlash) if (keyFlash[m] > 0.04) lit[m] = Math.max(lit[m] || 0, keyFlash[m]);
+
+  ctx.fillStyle = "rgba(14,15,22,0.95)"; ctx.fillRect(0, y0, W, PIANO_H);
+  ctx.strokeStyle = "#2d3041"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, y0 + 0.5); ctx.lineTo(W, y0 + 0.5); ctx.stroke();
+
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  WHITE_KEYS.forEach((m, i) => {
+    const x = i * ww, f = lit[m] || 0;
+    ctx.fillStyle = f > 0 ? `rgba(80,250,123,${0.3 + 0.7 * f})` : "#dfe2ea";
+    ctx.fillRect(x + 0.5, y0 + 1, ww - 1, PIANO_H - 2);
+    ctx.strokeStyle = "#0a0b10"; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y0 + 1, ww - 1, PIANO_H - 2);
+    if (((m % 12) + 12) % 12 === 0) {
+      ctx.fillStyle = f > 0 ? "#06210f" : "#8b949e"; ctx.font = "9px sans-serif";
+      ctx.fillText("C" + (Math.floor(m / 12) - 1), x + ww / 2, y0 + PIANO_H - 5);
+    }
+  });
+  for (let m = PITCH_LO; m <= PITCH_HI; m++) {
+    if (WHITE_PCS.has(((m % 12) + 12) % 12)) continue;
+    const wb = WHITE_KEYS.indexOf(m - 1); if (wb < 0) continue;
+    const x = (wb + 1) * ww - ww * 0.3, bw = ww * 0.6, bh = PIANO_H * 0.6, f = lit[m] || 0;
+    ctx.fillStyle = f > 0 ? `rgba(60,230,110,${0.55 + 0.45 * f})` : "#15161d";
+    ctx.fillRect(x, y0 + 1, bw, bh);
+    ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.strokeRect(x, y0 + 1, bw, bh);
+  }
+}
+
+function render(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  for (const m in keyFlash) { keyFlash[m] -= dt * 3; if (keyFlash[m] <= 0) delete keyFlash[m]; }
+
+  seq.update(dt, out);
+
+  // background
+  ctx.fillStyle = "#0a0b10";
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  for (const [sx, sy, sr] of bgStars) {
+    ctx.fillStyle = "rgba(189,147,249,0.25)";
+    ctx.beginPath(); ctx.arc(sx*W, sy*H, sr, 0, TWO_PI); ctx.fill();
+  }
+  ctx.restore();
+
+  const [cx, cy] = center;
+
+  // live spectrum wrapped around the ring
+  drawSpectrum();
+
+  // faint orbital tracks
+  ctx.save();
+  for (const n of seq.notes) {
+    ctx.strokeStyle = "rgba(40,43,58,0.9)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, n.normR * R, 0, TWO_PI); ctx.stroke();
+  }
+  ctx.restore();
+
+  // meter grid (beat spokes + 16th ticks)
+  drawGrid();
+
+  // glowing pink clock ring
+  ctx.save();
+  ctx.shadowColor = "#ff79c6"; ctx.shadowBlur = 26;
+  ctx.strokeStyle = "#ff79c6"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, TWO_PI); ctx.stroke();
+  ctx.restore();
+
+  // sweep arm (rotated bezier)
+  const pts = seq.bezierPoints(seq.sweepAngle);
+  ctx.save();
+  ctx.translate(cx, cy);
+  // control polygon (faint)
+  ctx.restore();
+  ctx.save();
+  ctx.shadowColor = "#bd93f9"; ctx.shadowBlur = 18;
+  ctx.strokeStyle = "#bd93f9"; ctx.lineWidth = 6; ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx + pts[0][0], cy + pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(cx + pts[i][0], cy + pts[i][1]);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx + pts[0][0], cy + pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(cx + pts[i][0], cy + pts[i][1]);
+  ctx.stroke();
+  ctx.restore();
+
+  // sweep-arm handles
+  let hs = seq.handles.map(h => [h[0]*R, h[1]*R]);
+  if (seq.spinning) {
+    const c = Math.cos(seq.sweepAngle), s = Math.sin(seq.sweepAngle);
+    hs = hs.map(h => [h[0]*c - h[1]*s, h[0]*s + h[1]*c]);
+  }
+  for (const h of hs) {
+    ctx.strokeStyle = "#ff79c6"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx+h[0], cy+h[1], 8, 0, TWO_PI); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx+h[0], cy+h[1], 4, 0, TWO_PI); ctx.fill();
+  }
+
+  // direction comet — a glowing trail on the rim makes CW vs CCW obvious
+  if (seq.spinning) {
+    const tip = seq.sweepAngle - Math.PI/2;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const segs = 16, span = 0.7;
+    for (let s = 0; s < segs; s++) {
+      const f = s / segs;
+      const a0 = tip - seq.dir * span * f;
+      const a1 = tip - seq.dir * span * (f + 1/segs);
+      ctx.strokeStyle = `rgba(255,121,198,${0.55 * (1 - f)})`;
+      ctx.lineWidth = 4 * (1 - f) + 0.5;
+      ctx.beginPath(); ctx.arc(cx, cy, R, Math.min(a0,a1), Math.max(a0,a1)); ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.beginPath(); ctx.arc(cx + Math.cos(tip)*R, cy + Math.sin(tip)*R, 5, 0, TWO_PI); ctx.fill();
+    ctx.restore();
+  }
+
+  // chord constellation — connect currently-sounding notes
+  const lit = seq.notes.filter(n => n.flash > 0.15);
+  if (lit.length >= 2) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(80,250,123,0.25)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    lit.forEach((n,i) => {
+      const vr = n.normR * R;
+      const x = cx + vr*Math.sin(n.polarAngle), y = cy - vr*Math.cos(n.polarAngle);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // orbiting notes
+  for (const n of seq.notes) {
+    const vr = n.normR * R;
+    const x = cx + vr*Math.sin(n.polarAngle), y = cy - vr*Math.cos(n.polarAngle);
+    const rad = n.radius;
+    // corona — layered concentric rings (cheaper than shadowBlur on Retina,
+    // and mirrors the Python original's discharge-aura approach).
+    ctx.save();
+    for (let layer = 4; layer > 0; layer--) {
+      const layerR = rad + layer * 3 + n.flash * 8;
+      const alpha = (0.1 + n.flash * 0.3) / layer;
+      ctx.fillStyle = `rgba(80, 250, 123, ${alpha})`;
+      ctx.beginPath(); ctx.arc(x, y, layerR, 0, TWO_PI); ctx.fill();
+    }
+    const fill = `rgba(${10 + n.flash*70}, ${30 + n.flash*120}, ${20 + n.flash*60}, 1)`;
+    ctx.fillStyle = fill;
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, TWO_PI); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = n.flash > 0.1 ? "#ffffff" : "#50fa7b";
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, TWO_PI); ctx.stroke();
+    ctx.restore();
+    if (n === selected) {
+      ctx.strokeStyle = "#ff79c6"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, rad + 5, 0, TWO_PI); ctx.stroke();
+    }
+    ctx.fillStyle = n.flash > 0.1 ? "#fff" : "#50fa7b";
+    ctx.font = "11px Segoe UI, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(n.name, x, y);
+  }
+
+  // bottom piano keyboard (lights up on each trigger)
+  drawPiano();
+
+  requestAnimationFrame(render);
+}
+
+resize();
+requestAnimationFrame(render);
+</script>
 </body>
 </html>

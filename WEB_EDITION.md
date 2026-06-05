@@ -1,6 +1,6 @@
 # Kirlian Orbits — Web Edition
 
-A single, self-contained file — [`kirlian_orbits_web.html`](kirlian_orbits_web.html) — that you
+A single, self-contained file — [`index.html`](index.html) — that you
 open in a browser. **No install, no Python, no MIDI rig required.** It plays a song the moment you
 press start, and you can build your own in seconds.
 
@@ -122,12 +122,13 @@ A grouped menu so anyone hears something gorgeous immediately:
 **▶ Live demo (no download): <https://kmay89.github.io/KirlianOrbits_mac/>** — click and press
 **Start & Play**.
 
-Prefer local? Double-click `kirlian_orbits_web.html` (or drag it into a browser tab). That's it.
+Prefer local? Double-click `index.html` (or drag it into a browser tab). That's it. (The old
+`kirlian_orbits_web.html` name still works — it just redirects to `index.html`.)
 
 > **Hosting it yourself (one-time, ~15s):** GitHub → **Settings → Pages → Build and deployment →
-> Source: _Deploy from a branch_ → Branch: `main` / `/ (root)` → Save.** The repo root has an
-> `index.html` that forwards to the app, so `https://<user>.github.io/<repo>/` just works. This
-> branch-based path needs no special token permissions — GitHub creates and serves the site for you.
+> Source: _Deploy from a branch_ → Branch: `main` / `/ (root)` → Save.** The app **is** `index.html`
+> at the repo root, so `https://<user>.github.io/<repo>/` serves it directly. A `.nojekyll` file makes
+> Pages serve the files as-is (no Jekyll), and this branch-based path needs no token permissions.
 
 ### Controls & keyboard legend
 
