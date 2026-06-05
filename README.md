@@ -5,36 +5,39 @@
 
 ---
 
-## ⚡ NEW: Web Edition (runs on Mac with zero setup) — `kirlian_orbits_web.html`
+## ⚡ NEW: Web Edition — open it in a browser, zero setup → **[`kirlian_orbits_web.html`](kirlian_orbits_web.html)**
 
-The original is a Python/pygame app that **transmits MIDI** — meaning on a Mac you
-hear nothing until you wire up a virtual MIDI cable plus a DAW/soft-synth. To make
-the "spinning notes" idea instantly playable on any machine, this fork adds a single
-**self-contained HTML file** that reimplements the engine in the browser:
+A single self-contained HTML file that reimplements the "spinning notes" engine in the
+browser. **No install, no Python, no MIDI, no DAW** — double-click it and it plays a song.
+Runs anywhere a modern browser does: **macOS, Windows, Linux, even phones/tablets.**
+*(This repo is named `…_mac` because the web build is what unblocks Mac users — but it's
+web-first and Mac-**compatible**, not Mac-only.)*
 
-- **Just double-click `kirlian_orbits_web.html`** — no Python, no pip, no MIDI setup.
-- **One-click Starter Songs** — generative *Soundscapes* plus a *Music Box* of famous
-  public-domain melodies (Twinkle Twinkle, Ode to Joy, Für Elise, Greensleeves) laid out
-  like a music-box cylinder. It auto-plays something gorgeous the moment you press start.
-- **Welcome panel** that explains the app to both musicians and total beginners, plus a
-  few first ideas so anyone can start creating right away.
-- **Built-in Web Audio synthesizer** (4 voices: Kirlian Pluck, Super Saw, FM Bell, Pure Sine
-  + a generated reverb), so it makes sound on its own.
-- **Live radial spectrum analyzer** wrapped around the orbit ring — you literally
-  *spin a spectrum*, and chords **bloom visually** as they sound (a "chord constellation"
-  links notes that fire together).
-- Faithful port of the orbital model: spinning cubic-Bezier sweep arm, concentric
-  orbits with BPM-% / clock-divisor speeds, the original frame-rate-independent
-  relative-polar collision math, 22 scales, key selection, and the Kirlian neon aesthetic.
+**Why, if the original is a MIDI tool?** Kirlian Orbits is a MIDI *controller* — it makes no
+sound itself; it sends notes to a synth/DAW you set up. Brilliant for musicians with that
+rig, but a wall for everyone else, and on **macOS there's no built-in synth at all**, so a
+first-time Mac user hears nothing. The *idea* — watching notes orbit and chords light up — is
+delightful far beyond MIDI, so we gave it **its own voice and visuals** so anyone can try it in
+one click. (Real Web MIDI output is a natural future add-on.)
 
-Controls: **Space** play/pause · **Click** the ring to add a note · drag notes and the
-sweep-arm handles · **Del** removes the selected note · **C** clears.
+**What's in the web edition:**
+- 🔊 **Built-in synthesizer** — 4 voices (Kirlian Pluck, Super Saw, FM Bell, Pure Sine) + reverb.
+- 🌈 **Live spectrum wrapped around the ring** (you literally *spin a spectrum*) + a **chord
+  constellation** that shows what a chord looks like as it sounds.
+- 🎵 **One-click Starter Songs** — generative *Soundscapes* plus a **Music Box** of famous
+  public-domain tunes (Twinkle Twinkle, Ode to Joy, Für Elise, Greensleeves).
+- 👋 **Welcome + tips** that explain it to musicians *and* total beginners.
+- 🎛️ Faithful port of the orbital model (Bézier sweep arm, BPM-%/divisor orbits, the original
+  relative-polar collision math, 22 scales, key selection, Kirlian neon look).
+
+**Controls:** **Space** play · **Click** the ring to add a note · **drag** notes & the pink
+sweep-arm handles · **Esc**/click outside to deselect · **Del** remove · **C** clear · **?** help.
+
+📖 **Full documentation, the rationale, controls table, and roadmap: [`WEB_EDITION.md`](WEB_EDITION.md).**
 
 > Credit & original concept: **Benn Jordan**. Released, like the original, under
-> [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.en) — free to use,
-> share and modify with attribution, non-commercial.
-
-The original Python app below is unchanged.
+> [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.en) — attribution,
+> non-commercial. **The original Python app below is untouched.**
 
 ---
 
