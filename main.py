@@ -11,7 +11,8 @@ from midi_manager import MidiManager
 from sequencer import Sequencer
 from ui import (
     FontManager, Button, Slider, Dropdown, NoteSidebar, draw_clock_board,
-    COLOR_BG, COLOR_PRIMARY, COLOR_PINK, COLOR_TEXT, COLOR_MUTED, COLOR_EMERALD, COLOR_RED, COLOR_WHITE
+    COLOR_BG, COLOR_PRIMARY, COLOR_PINK, COLOR_TEXT, COLOR_MUTED, COLOR_EMERALD, COLOR_RED, COLOR_WHITE,
+    COLOR_BORDER
 )
 
 # Initial screen dimensions
