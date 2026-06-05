@@ -13,6 +13,11 @@ the "spinning notes" idea instantly playable on any machine, this fork adds a si
 **self-contained HTML file** that reimplements the engine in the browser:
 
 - **Just double-click `kirlian_orbits_web.html`** — no Python, no pip, no MIDI setup.
+- **One-click Starter Songs** — generative *Soundscapes* plus a *Music Box* of famous
+  public-domain melodies (Twinkle Twinkle, Ode to Joy, Für Elise, Greensleeves) laid out
+  like a music-box cylinder. It auto-plays something gorgeous the moment you press start.
+- **Welcome panel** that explains the app to both musicians and total beginners, plus a
+  few first ideas so anyone can start creating right away.
 - **Built-in Web Audio synthesizer** (4 voices: Kirlian Pluck, Super Saw, FM Bell, Pure Sine
   + a generated reverb), so it makes sound on its own.
 - **Live radial spectrum analyzer** wrapped around the orbit ring — you literally

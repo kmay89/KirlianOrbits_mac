@@ -124,6 +124,36 @@
   #start .pulse { animation: glowpulse 1.8s ease-in-out infinite; }
   .hidden { display:none !important; }
   kbd { background:#2b2f44; border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:11px; color:var(--text); }
+
+  /* ── Welcome columns + CTA ─────────────────────────────────────── */
+  #start .cols { display:flex; gap:20px; margin-top:24px; flex-wrap:wrap; justify-content:center; max-width:660px; padding:0 16px; }
+  #start .col { flex:1 1 250px; background:rgba(22,23,31,0.6); border:1px solid var(--border); border-radius:12px; padding:14px 16px; text-align:left; }
+  #start .col h3 { margin:0 0 8px; font-size:14px; }
+  #start .col.mus h3 { color:var(--primary); }
+  #start .col.non h3 { color:var(--emerald); }
+  #start .col p { margin:0; font-size:12.5px; color:var(--text); line-height:1.65; }
+  #start .col p b { color:var(--pink); }
+  #start .cta {
+    margin-top:26px; font-size:16px; font-weight:800; letter-spacing:1px; color:#06210f;
+    background:var(--emerald); border:none; border-radius:10px; padding:13px 30px; cursor:pointer;
+    box-shadow:0 0 28px #50fa7b66; animation: glowpulse 1.8s ease-in-out infinite;
+  }
+  #start .cta:hover { filter:brightness(1.1); }
+  #start .tiny2 { margin-top:16px; font-size:11px; color:var(--muted); }
+
+  /* ── Help button + first-run tips card ─────────────────────────── */
+  .helpbtn { width:30px; height:30px; border-radius:50%; border:1px solid var(--border);
+    background:#2b2f44; color:var(--primary); font-size:16px; font-weight:800; cursor:pointer; margin-left:auto; }
+  .helpbtn:hover { filter:brightness(1.25); }
+  #tips { position:absolute; left:14px; bottom:42px; z-index:14; max-width:440px;
+    background:rgba(22,23,31,0.95); border:1px solid var(--border); border-left:3px solid var(--emerald);
+    border-radius:10px; padding:12px 14px; box-shadow:0 8px 28px #000b; }
+  #tips h4 { margin:0 0 6px; font-size:13px; color:var(--emerald); }
+  #tips ul { margin:0; padding-left:18px; }
+  #tips li { font-size:12px; color:var(--text); line-height:1.75; }
+  #tips li b { color:var(--pink); }
+  #tips .close { margin-top:8px; font-size:11px; color:var(--muted); cursor:pointer; display:inline-block; }
+  #tips .close:hover { color:var(--text); }
 </style>
 </head>
 <body>
@@ -174,6 +204,7 @@
       <div class="row"><input id="reverb" type="range" min="0" max="100" value="38" style="width:70px"></div>
     </div>
     <button id="specBtn" class="btn toggle on">SPECTRUM</button>
+    <button id="helpBtn" class="helpbtn" title="How it works">?</button>
   </div>
 
   <!-- Note editor -->
@@ -211,15 +242,34 @@
     Concept &amp; original by <a href="https://www.patreon.com/bennjordan" target="_blank" rel="noopener">Benn Jordan</a> · CC BY-NC 4.0
   </div>
 
-  <!-- Start gate (browsers require a gesture before audio) -->
+  <!-- First-run tips: a few quick ideas so anyone can make it their own -->
+  <div id="tips" class="hidden">
+    <h4>💡 Make it yours — try this</h4>
+    <ul>
+      <li><b>Pick a Starter Song</b> up top — the 🎵 Music Box tunes are famous melodies.</li>
+      <li><b>Click inside the ring</b> to drop your own note (it snaps to the key).</li>
+      <li><b>Drag a note outward</b> to raise its pitch — inward lowers it.</li>
+      <li>Flip <b>Scale → Minor</b> for an instant mood swing, or drag the <b>pink handles</b> to bend the arm.</li>
+    </ul>
+    <div class="close">Got it ✓</div>
+  </div>
+
+  <!-- Start gate / welcome (browsers require a gesture before audio) -->
   <div id="start">
     <div class="big">KIRLIAN ORBITS</div>
-    <div class="pulse">Click anywhere to <b>spin up the sound engine</b></div>
-    <div class="small">
-      A circular sequencer where notes orbit and a spinning electric arm plays them.
-      This web edition has its own built-in synthesizer and a live spectrum wrapped around the ring —
-      no MIDI, no setup. Original concept by Benn Jordan.
+    <div class="pulse">A circular music machine — <b>notes orbit, a glowing arm plays them.</b></div>
+    <div class="cols">
+      <div class="col non">
+        <h3>✨ Never touched music?</h3>
+        <p>Just press start — it <b>plays a song instantly</b>. Pick a <b>Starter Song</b> up top (try the 🎵 Music Box tunes), then <b>click inside the ring</b> to add glowing notes. They snap to the key, so it always sounds good.</p>
+      </div>
+      <div class="col mus">
+        <h3>🎹 Musician?</h3>
+        <p>It's a <b>polar sequencer</b>: radius ≈ pitch (quantized to the chosen key/scale), angle = phase. A Bézier arm sweeps and triggers notes on crossing. Give each note its own <b>orbit speed</b> (BPM-% or clock divisor) for polymetric patterns. Built-in synth — no MIDI.</p>
+      </div>
     </div>
+    <button class="cta">▶ Start &amp; Play</button>
+    <div class="tiny2">Built-in synthesizer · live spectrum · original concept by Benn Jordan · CC BY-NC 4.0</div>
   </div>
 </div>
 
@@ -711,12 +761,19 @@ Object.keys(SCALES).forEach(nm => { const o = document.createElement("option"); 
 keySel.onchange = e => { curKey = +e.target.value; seq.requantize(curKey, curScale); if (selected) syncPanel(); };
 scaleSel.onchange = e => { curScale = e.target.value; seq.requantize(curKey, curScale); if (selected) syncPanel(); };
 
-/* ── Starter songs — curated patterns so non-musicians hear something
-   gorgeous in one click. Each note: r (0..1 radius), ang (0..1 around),
-   midi, div (clock divisor), optional vel/gate. ─────────────────────── */
+/* ── Starter songs ───────────────────────────────────────────────────
+   Soundscapes: generative orbital patterns (notes orbit + arm spins).
+   Music Box: famous public-domain melodies laid out like a music-box
+   cylinder — notes sit at one radius, the spin is OFF, and the fixed arm
+   at 12 o'clock reads each note as it orbits past (plays the tune in
+   order, then loops). `box()` turns [midi, beat] pairs into that ring.
+   ──────────────────────────────────────────────────────────────────── */
+const box = (arr, loopBeats, radius = 0.72, gate = 0.4) =>
+  arr.map(([midi, t]) => ({ r: radius, ang: 1 - t / loopBeats, midi, speed: 100, gate }));
+
 const PRESETS = {
   "✨ Kirlian Bloom": {
-    bpm:120, key:0, scale:"Major", wave:"bell", reverb:0.42, dir:1,
+    group:"Soundscapes", bpm:120, key:0, scale:"Major", wave:"bell", reverb:0.42, dir:1,
     notes:[
       {r:0.34, ang:0.00, midi:60, div:1},
       {r:0.58, ang:0.66, midi:64, div:2},
@@ -724,7 +781,7 @@ const PRESETS = {
       {r:0.94, ang:0.50, midi:72, div:8, gate:1.0},
     ]},
   "🌌 Deep Space Pad": {
-    bpm:68, key:0, scale:"Major", wave:"sine", reverb:0.62, dir:1,
+    group:"Soundscapes", bpm:68, key:0, scale:"Major", wave:"sine", reverb:0.62, dir:1,
     notes:[
       {r:0.40, ang:0.00, midi:48, div:4, vel:72, gate:1.6},
       {r:0.58, ang:0.50, midi:55, div:8, vel:64, gate:1.8},
@@ -732,7 +789,7 @@ const PRESETS = {
       {r:0.90, ang:0.75, midi:64, div:6, vel:55, gate:2.0},
     ]},
   "💫 Starlight Cascade": {
-    bpm:108, key:0, scale:"Pentatonic Major", wave:"pluck", reverb:0.50, dir:1,
+    group:"Soundscapes", bpm:108, key:0, scale:"Pentatonic Major", wave:"pluck", reverb:0.50, dir:1,
     notes:[
       {r:0.28, ang:0.00, midi:72, div:1},
       {r:0.40, ang:0.16, midi:74, div:2},
@@ -742,7 +799,7 @@ const PRESETS = {
       {r:0.90, ang:0.83, midi:84, div:8},
     ]},
   "🔮 Neon Arpeggio": {
-    bpm:128, key:9, scale:"Minor", wave:"supersaw", reverb:0.30, dir:1,
+    group:"Soundscapes", bpm:128, key:9, scale:"Minor", wave:"supersaw", reverb:0.30, dir:1,
     notes:[
       {r:0.30, ang:0.00, midi:57, div:1},
       {r:0.46, ang:0.33, midi:60, div:1},
@@ -751,7 +808,7 @@ const PRESETS = {
       {r:0.92, ang:0.50, midi:72, div:4},
     ]},
   "🌀 Hypno Pulse": {
-    bpm:124, key:0, scale:"Minor", wave:"pluck", reverb:0.26, dir:1,
+    group:"Soundscapes", bpm:124, key:0, scale:"Minor", wave:"pluck", reverb:0.26, dir:1,
     notes:[
       {r:0.26, ang:0.00, midi:36, div:1, gate:0.3},
       {r:0.44, ang:0.50, midi:48, div:2, gate:0.3},
@@ -759,9 +816,31 @@ const PRESETS = {
       {r:0.74, ang:0.75, midi:55, div:4},
       {r:0.90, ang:0.00, midi:60, div:8},
     ]},
+
+  // ── Music Box: famous public-domain melodies (spin off, fixed reader) ──
+  "🎵 Twinkle, Twinkle": {
+    group:"Music Box (famous tunes)", bpm:46, key:0, scale:"Major", wave:"bell", reverb:0.46, spin:false, straight:true,
+    notes: box([[60,0],[60,1],[67,2],[67,3],[69,4],[69,5],[67,6],[65,8],[65,9],[64,10],[64,11],[62,12],[62,13],[60,14]], 16) },
+  "🎵 Ode to Joy": {
+    group:"Music Box (famous tunes)", bpm:48, key:0, scale:"Major", wave:"bell", reverb:0.46, spin:false, straight:true,
+    notes: box([[64,0],[64,1],[65,2],[67,3],[67,4],[65,5],[64,6],[62,7],[60,8],[60,9],[62,10],[64,11],[64,12],[62,13],[62,14]], 16) },
+  "🎵 Für Elise": {
+    group:"Music Box (famous tunes)", bpm:54, key:0, scale:"Chromatic", wave:"bell", reverb:0.44, spin:false, straight:true,
+    notes: box([[76,0],[75,1],[76,2],[75,3],[76,4],[71,5],[74,6],[72,7],[69,8],[60,10],[64,11],[69,12],[71,13],[64,15],[68,16],[71,17],[72,18]], 20) },
+  "🎵 Greensleeves": {
+    group:"Music Box (famous tunes)", bpm:44, key:9, scale:"Minor", wave:"bell", reverb:0.48, spin:false, straight:true,
+    notes: box([[57,0],[60,1],[62,2],[64,3],[65,4],[64,5],[62,6],[59,7],[55,8],[57,9],[59,10],[57,11],[57,12]], 14) },
 };
+const STRAIGHT_ARM = [[0,-0.30],[0,-0.65],[0,-1.00]];
+const CURVED_ARM   = [[0.17,-0.30],[0.11,-0.66],[0,-1.00]];
 const presetSel = el("presetSel");
-Object.keys(PRESETS).forEach(name => { const o = document.createElement("option"); o.value = name; o.textContent = name; presetSel.appendChild(o); });
+const presetGroups = {};
+Object.keys(PRESETS).forEach(name => { const g = PRESETS[name].group || "Presets"; (presetGroups[g] = presetGroups[g] || []).push(name); });
+Object.keys(presetGroups).forEach(g => {
+  const og = document.createElement("optgroup"); og.label = g;
+  presetGroups[g].forEach(name => { const o = document.createElement("option"); o.value = name; o.textContent = name; og.appendChild(o); });
+  presetSel.appendChild(og);
+});
 function loadPreset(name) {
   const p = PRESETS[name]; if (!p) return;
   seq.notes = [];
@@ -772,7 +851,8 @@ function loadPreset(name) {
   synth.setReverb(p.reverb); el("reverb").value = Math.round(p.reverb * 100);
   seq.spinning = p.spin !== false; updateSpinBtn();
   seq.dir = p.dir || 1; updateDirBtn();
-  if (seq.spinning) seq.sweepAngle = 0;
+  seq.handles = (p.straight ? STRAIGHT_ARM : CURVED_ARM).map(h => h.slice());
+  seq.sweepAngle = 0;
   for (const nd of p.notes) {
     const n = new Note(nd.r, (nd.ang || 0) * TWO_PI, nd.midi);
     n.orbitMode = nd.div ? 1 : 0;
@@ -794,16 +874,26 @@ window.addEventListener("keydown", e => {
   else if (e.code === "Escape") { selectNote(null); }
 });
 
-/* ── Start gate ────────────────────────────────────────────────────── */
+/* ── Start gate, welcome & tips ────────────────────────────────────── */
 const startOverlay = el("start");
-function beginIfNeeded() {
-  if (!startOverlay.classList.contains("hidden")) {
-    startOverlay.classList.add("hidden");
-    synth.init(); synth.resume();
-    setPlay(true);
-  }
+const tips = el("tips");
+let started = false;
+const DEFAULT_PRESET = "💫 Starlight Cascade"; // sounds gorgeous on first load
+function beginIfNeeded() {            // idempotent: dismiss overlay + wake audio
+  if (started) return;
+  started = true;
+  startOverlay.classList.add("hidden");
+  synth.init(); synth.resume();
 }
-startOverlay.addEventListener("click", beginIfNeeded);
+startOverlay.addEventListener("click", () => {
+  const first = !started;
+  beginIfNeeded();
+  startOverlay.classList.add("hidden");
+  if (first) { loadPreset(DEFAULT_PRESET); setPlay(true); showTips(); }
+});
+function showTips() { tips.classList.remove("hidden"); }
+tips.querySelector(".close").onclick = () => tips.classList.add("hidden");
+el("helpBtn").onclick = () => startOverlay.classList.remove("hidden");
 
 /* ════════════════════════════════════════════════════════════════════
    RENDER LOOP
