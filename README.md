@@ -8,7 +8,7 @@
 ## ⚡ NEW: Web Edition — open it in a browser, zero setup → **[`kirlian_orbits_web.html`](kirlian_orbits_web.html)**
 
 A single self-contained HTML file that reimplements the "spinning notes" engine in the
-browser. **No install, no Python, no MIDI, no DAW** — double-click it and it plays a song.
+browser. **No install, no Python, no MIDI rig required** — double-click it and it plays a song.
 Runs anywhere a modern browser does: **macOS, Windows, Linux, even phones/tablets.**
 *(This repo is named `…_mac` because the web build is what unblocks Mac users — but it's
 web-first and Mac-**compatible**, not Mac-only.)*
@@ -18,24 +18,28 @@ sound itself; it sends notes to a synth/DAW you set up. Brilliant for musicians 
 rig, but a wall for everyone else, and on **macOS there's no built-in synth at all**, so a
 first-time Mac user hears nothing. The *idea* — watching notes orbit and chords light up — is
 delightful far beyond MIDI, so we gave it **its own voice and visuals** so anyone can try it in
-one click. (Real Web MIDI output is a natural future add-on.)
+one click — and **it can still send real MIDI** to your DAW/hardware in Chrome/Edge (see below).
 
 **What's in the web edition:**
 - 🔊 **Built-in synthesizer** — 4 voices (Kirlian Pluck, Super Saw, FM Bell, Pure Sine) + reverb.
+- 🎹 **Optional Web MIDI output** — pick a port in the **Output** menu to drive a DAW or hardware,
+  just like the original (desktop **Chrome/Edge** with a USB‑MIDI device; **Bluefy** on iOS).
 - 🌈 **Live spectrum wrapped around the ring** (you literally *spin a spectrum*) + a **chord
   constellation** that shows what a chord looks like as it sounds.
 - 🎵 **One-click Starter Songs** — generative *Soundscapes* plus a **Music Box** of famous
   public-domain tunes (Twinkle Twinkle, Ode to Joy, Für Elise, Greensleeves).
-- 👋 **Welcome + tips** that explain it to musicians *and* total beginners.
+- 👋 **Welcome + tips** that explain it to musicians *and* total beginners, with a keyboard legend.
 - 🎛️ Faithful port of the orbital model (Bézier sweep arm, BPM-%/divisor orbits, the original
   relative-polar collision math, 22 scales, key selection, Kirlian neon look).
 
-**Controls:** **Space** play · **Click** the ring to add a note · **drag** notes & the pink
-sweep-arm handles · **Esc**/click outside to deselect · **Del** remove · **C** clear · **?** help.
+**Controls:** **Space** to play · **`1`–`9`** to load a song · **Click** the ring to add a note ·
+**drag** notes & the pink handles · **`S`** to spin · **`D`** for direction · **Esc** to deselect ·
+**Del** to delete · **C** to clear · **?** for help.
 
 📖 **Full documentation, the rationale, controls table, and roadmap: [`WEB_EDITION.md`](WEB_EDITION.md).**
 
-> Credit & original concept: **Benn Jordan**. Released, like the original, under
+> **Original concept & Python app: [Benn Jordan](https://www.patreon.com/bennjordan).**
+> Web edition by **Karl Meves / ERRERLabs**. Released, like the original, under
 > [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.en) — attribution,
 > non-commercial. **The original Python app below is untouched.**
 

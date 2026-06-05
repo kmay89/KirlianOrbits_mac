@@ -140,6 +140,8 @@
   }
   #start .cta:hover { filter:brightness(1.1); }
   #start .tiny2 { margin-top:16px; font-size:11px; color:var(--muted); }
+  #start .keys { display:flex; flex-wrap:wrap; gap:8px 14px; justify-content:center; margin-top:22px; max-width:620px; padding:0 16px; }
+  #start .keys span { font-size:11.5px; color:var(--muted); white-space:nowrap; }
 
   /* ── Help button + first-run tips card ─────────────────────────── */
   .helpbtn { width:30px; height:30px; border-radius:50%; border:1px solid var(--border);
@@ -203,6 +205,10 @@
       <label>Reverb</label>
       <div class="row"><input id="reverb" type="range" min="0" max="100" value="38" style="width:70px"></div>
     </div>
+    <div class="ctl">
+      <label>Output</label>
+      <select id="outSel"><option value="synth">🔊 Built-in Synth</option></select>
+    </div>
     <button id="specBtn" class="btn toggle on">SPECTRUM</button>
     <button id="helpBtn" class="helpbtn" title="How it works">?</button>
   </div>
@@ -236,10 +242,11 @@
   </div>
 
   <div id="hint">
-    <kbd>Space</kbd> play · <b>Click</b> ring to add a note · Drag notes &amp; sweep-arm handles · <kbd>Del</kbd> remove · <kbd>C</kbd> clear
+    <kbd>Space</kbd> play · <kbd>1</kbd>–<kbd>9</kbd> songs · <b>Click</b> ring to add · Drag notes &amp; handles · <kbd>S</kbd> spin · <kbd>?</kbd> help
   </div>
   <div id="credit">
-    Concept &amp; original by <a href="https://www.patreon.com/bennjordan" target="_blank" rel="noopener">Benn Jordan</a> · CC BY-NC 4.0
+    Original by <a href="https://www.patreon.com/bennjordan" target="_blank" rel="noopener">Benn Jordan</a> ·
+    Web edition by <a href="https://github.com/kmay89" target="_blank" rel="noopener">Karl Meves</a> · ERRERLabs · CC BY-NC 4.0
   </div>
 
   <!-- First-run tips: a few quick ideas so anyone can make it their own -->
@@ -265,11 +272,24 @@
       </div>
       <div class="col mus">
         <h3>🎹 Musician?</h3>
-        <p>It's a <b>polar sequencer</b>: radius ≈ pitch (quantized to the chosen key/scale), angle = phase. A Bézier arm sweeps and triggers notes on crossing. Give each note its own <b>orbit speed</b> (BPM-% or clock divisor) for polymetric patterns. Built-in synth — no MIDI.</p>
+        <p>It's a <b>polar sequencer</b>: radius ≈ pitch (quantized to the chosen key/scale), angle = phase. A Bézier arm sweeps and triggers notes on crossing. Give each note its own <b>orbit speed</b> (BPM-% or clock divisor) for polymetric patterns. Play the built-in synth, or route to your DAW/hardware via <b>Web MIDI</b> — pick a port in the Output menu (Chrome/Edge with a USB‑MIDI device; Bluefy on iOS).</p>
       </div>
     </div>
+    <div class="keys">
+      <span><kbd>Space</kbd> play/pause</span>
+      <span><kbd>1</kbd>–<kbd>9</kbd> load a song</span>
+      <span><kbd>Click</kbd> ring: add note</span>
+      <span><kbd>Drag</kbd> notes / handles</span>
+      <span><kbd>S</kbd> spin on/off</span>
+      <span><kbd>D</kbd> direction</span>
+      <span><kbd>[</kbd> <kbd>]</kbd> tempo −/+</span>
+      <span><kbd>Esc</kbd> deselect</span>
+      <span><kbd>Del</kbd> delete note</span>
+      <span><kbd>C</kbd> clear all</span>
+      <span><kbd>?</kbd> this help</span>
+    </div>
     <button class="cta">▶ Start &amp; Play</button>
-    <div class="tiny2">Built-in synthesizer · live spectrum · original concept by Benn Jordan · CC BY-NC 4.0</div>
+    <div class="tiny2">Built-in synth + optional Web MIDI · live spectrum · original by Benn Jordan · web edition by Karl Meves / ERRERLabs · CC BY-NC 4.0</div>
   </div>
 </div>
 
@@ -573,7 +593,7 @@ class Sequencer {
     const targetShift = ((TWO_PI - start) % TWO_PI + TWO_PI) % TWO_PI;
     return diff < Math.PI ? (targetShift <= diff) : (targetShift >= diff);
   }
-  update(dt, synth) {
+  update(dt, out) {
     for (const n of this.notes) if (n.flash > 0) n.flash = Math.max(0, n.flash - dt * 3.2);
     if (!this.isPlaying) return [];
 
@@ -601,7 +621,7 @@ class Sequencer {
 
       if (this._crossed(relPrev, relCurr)) {
         const gateSec = n.gate * (60 / this.bpm);
-        synth.noteOn(n.midi, n.velocity, gateSec);
+        out.noteOn(n.midi, n.velocity, gateSec);
         n.flash = 1;
         fired.push(n);
       }
@@ -618,6 +638,55 @@ const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
 const synth = new SynthEngine();
 const seq = new Sequencer();
+
+/* ── Web MIDI output ─────────────────────────────────────────────────
+   Optional: in browsers that expose the Web MIDI API (Chrome, Edge, and
+   Bluefy on iOS), route notes out to a hardware/virtual MIDI port — i.e.
+   the web edition can drive a real synth or DAW, just like the original.
+   Primary path: desktop Chrome/Edge with a USB‑MIDI interface or device;
+   Bluefy provides it on iOS. Picking a MIDI port routes there exclusively
+   (the built-in synth is muted so the DAW gets a clean signal). Default
+   stays the built-in synth.
+   ──────────────────────────────────────────────────────────────────── */
+const midiOut = {
+  access: null,
+  ports: [],
+  port: null,        // selected MIDIOutput, or null = use built-in synth
+  channel: 0,        // 0-15
+  get enabled() { return !!this.port; },
+  async init() {
+    if (this.access || !navigator.requestMIDIAccess) return;
+    try {
+      this.access = await navigator.requestMIDIAccess({ sysex: false });
+      this.access.onstatechange = () => this.refresh();
+      this.refresh();
+    } catch (e) {
+      console.warn("Web MIDI unavailable:", e);
+    }
+  },
+  refresh() {
+    this.ports = this.access ? Array.from(this.access.outputs.values()) : [];
+    if (this.port && !this.ports.some(p => p.id === this.port.id)) this.port = null; // unplugged
+    if (typeof buildOutputOptions === "function") buildOutputOptions();
+  },
+  setPort(id) { this.port = this.ports.find(p => p.id === id) || null; },
+  noteOn(midi, velocity, gateSec, channel = this.channel) {
+    if (!this.port) return;
+    const ch = channel & 0x0f;
+    const n = clamp(midi | 0, 0, 127);
+    const v = clamp(velocity | 0, 0, 127);
+    this.port.send([0x90 | ch, n, v]);                                   // note on
+    this.port.send([0x80 | ch, n, 0], performance.now() + gateSec * 1000); // scheduled note off
+  },
+};
+
+// Output router: the sequencer fires through this; it picks MIDI or the synth.
+const out = {
+  noteOn(midi, velocity, gateSec) {
+    if (midiOut.enabled) midiOut.noteOn(midi, velocity, gateSec);
+    else synth.noteOn(midi, velocity, gateSec);
+  },
+};
 
 let W = 0, H = 0, DPR = 1;
 let center = [0,0], R = 250;
@@ -753,6 +822,24 @@ el("dirBtn").onclick = () => { seq.dir = -seq.dir; updateDirBtn(); };
 el("specBtn").onclick = e => { showSpectrum = !showSpectrum; e.target.classList.toggle("on", showSpectrum); };
 el("waveSel").onchange = e => synth.waveform = e.target.value;
 el("reverb").oninput = e => synth.setReverb(+e.target.value / 100);
+function setTempo(v) { seq.bpm = clamp(Math.round(v), 20, 300); el("bpm").value = seq.bpm; el("bpmVal").textContent = seq.bpm; }
+
+// Output routing (built-in synth or a Web MIDI port)
+const outSel = el("outSel");
+function buildOutputOptions() {
+  const current = midiOut.port ? midiOut.port.id : "synth";
+  outSel.innerHTML = "";
+  const synthOpt = document.createElement("option");
+  synthOpt.value = "synth"; synthOpt.textContent = "🔊 Built-in Synth";
+  outSel.appendChild(synthOpt);
+  for (const p of midiOut.ports) {
+    const o = document.createElement("option");
+    o.value = p.id; o.textContent = "🎹 " + (p.name || p.id);
+    outSel.appendChild(o);
+  }
+  outSel.value = midiOut.ports.some(p => p.id === current) ? current : "synth";
+}
+outSel.onchange = e => midiOut.setPort(e.target.value); // "synth" matches no port → built-in
 
 // populate selects
 const keySel = el("keySel"), scaleSel = el("scaleSel");
@@ -875,6 +962,16 @@ window.addEventListener("keydown", e => {
   else if (e.code === "Delete" || e.code === "Backspace") { if (selected){ seq.remove(selected); selectNote(null); } }
   else if (e.key === "c" || e.key === "C") { seq.clear(); selectNote(null); }
   else if (e.code === "Escape") { selectNote(null); }
+  else if (e.key === "s" || e.key === "S") { el("spinBtn").click(); }
+  else if (e.key === "d" || e.key === "D") { el("dirBtn").click(); }
+  else if (e.code === "BracketLeft")  { setTempo(seq.bpm - 4); }
+  else if (e.code === "BracketRight") { setTempo(seq.bpm + 4); }
+  else if (e.key === "?" || e.key === "h" || e.key === "H") { startOverlay.classList.remove("hidden"); }
+  else if (e.code.startsWith("Digit")) {
+    const idx = parseInt(e.code.slice(5), 10) - 1;            // 1-9 → preset index
+    const names = Object.keys(PRESETS);
+    if (idx >= 0 && idx < names.length) { beginIfNeeded(); loadPreset(names[idx]); setPlay(true); }
+  }
 });
 
 /* ── Start gate, welcome & tips ────────────────────────────────────── */
@@ -887,6 +984,7 @@ function beginIfNeeded() {            // idempotent: dismiss overlay + wake audi
   started = true;
   startOverlay.classList.add("hidden");
   synth.init(); synth.resume();
+  midiOut.init();   // ask for Web MIDI access (no-op where unsupported)
 }
 startOverlay.addEventListener("click", (e) => {
   if (e.target.closest(".col")) return;   // let users read/select the text columns
@@ -968,7 +1066,7 @@ function render(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
 
-  seq.update(dt, synth);
+  seq.update(dt, out);
 
   // background
   ctx.fillStyle = "#0a0b10";

@@ -1,7 +1,7 @@
 # Kirlian Orbits — Web Edition
 
 A single, self-contained file — [`kirlian_orbits_web.html`](kirlian_orbits_web.html) — that you
-open in a browser. **No install, no Python, no MIDI, no DAW.** It plays a song the moment you
+open in a browser. **No install, no Python, no MIDI rig required.** It plays a song the moment you
 press start, and you can build your own in seconds.
 
 > **It runs anywhere a modern browser does** — macOS, Windows, Linux, even phones and tablets.
@@ -41,9 +41,10 @@ double-click. Musicians still get a fast, fun playground; everyone else finally 
 what makes it cool.
 
 > **"But it's not MIDI anymore?"** The built-in synth is the *default*, not a replacement of the
-> philosophy. Browsers ship the **Web MIDI API**, so sending real MIDI out to a DAW is a natural
-> future addition (see [Roadmap](#roadmap--ideas)) — we just led with built-in sound so it works
-> for *everyone* on the very first load.
+> philosophy — and **real MIDI output is built in too.** In browsers with the Web MIDI API (desktop
+> **Chrome/Edge** with a USB‑MIDI device, or **Bluefy** on iOS) you can pick a port in the **Output**
+> menu and drive your DAW or hardware, exactly like the original. We just led with built-in sound so
+> it works for *everyone* on the very first load.
 
 ---
 
@@ -62,6 +63,16 @@ A small polyphonic Web Audio engine so it sounds great with zero setup:
   **peak-hold caps**, and an inward reflection, all additively blended for glow.
 - A **chord constellation** connects notes that fire together, so you can *see what a chord looks
   like* as it sounds.
+
+### 🎹 Web MIDI output (drive a real DAW / hardware)
+The original's whole job — sending MIDI — is here too, now optional:
+- In browsers that expose the **Web MIDI API** (desktop **Chrome / Edge** with a USB‑MIDI interface
+  or device; **Bluefy** on iOS), the **Output** menu lists your MIDI ports.
+- Pick a port and notes are sent as standard **Note On / Note Off** messages (with scheduled gates),
+  so it plays your DAW or synth. Selecting a port routes there exclusively (the built-in synth mutes
+  so your DAW gets a clean signal); the on-screen spectrum reflects the built-in voice, so it idles
+  in MIDI mode.
+- No Web MIDI support? The menu simply shows the built-in synth and everything still works.
 
 ### 🎛️ Faithful engine port
 Everything that makes the original tick, re-implemented on HTML5 Canvas:
@@ -106,23 +117,26 @@ A grouped menu so anyone hears something gorgeous immediately:
 *Want a shareable link instead of a download?* It's a static file, so any static host works — e.g.
 **GitHub Pages**: enable Pages on this repo and link straight to the file.
 
-### Controls
+### Controls & keyboard legend
 
 | Action | How |
 | --- | --- |
 | Play / pause | **Space**, or the Play button |
-| Pick a song | **Starter Song** menu (top bar) |
+| Load a Starter Song | **`1`–`9`**, or the **Starter Song** menu (1–5 Soundscapes, 6–9 Music Box) |
 | Add a note | **Click inside the ring** (it snaps to the current key) |
 | Edit a note | **Click a note** → side panel (pitch, velocity, gate, orbit mode/speed) |
 | Move a note | **Drag** it — outward raises pitch, around changes its phase |
 | Warp the sweep arm | **Drag the pink handles** |
-| Dismiss the editor | Click **outside the ring**, or **Esc** |
-| Delete a note | **Del / Backspace** (with a note selected) |
-| Clear everything | **C**, or the Clear button |
-| How it works | the **`?`** button (reopens the welcome) |
+| Toggle spin | **`S`**, or the Spin button |
+| Flip direction (CW/CCW) | **`D`**, or the Direction button |
+| Tempo down / up | **`[`** / **`]`** (or the Tempo slider) |
+| Deselect / close editor | **`Esc`**, or click outside the ring |
+| Delete selected note | **`Del` / `Backspace`** |
+| Clear everything | **`C`**, or the Clear button |
+| Help / how it works | **`?`** (or **`H`**), or the `?` button — reopens the welcome |
 
 Top bar also has: **Tempo**, **Spin** on/off, **Direction** (CW/CCW), **Key**, **Scale**, **Voice**,
-**Reverb**, and a **Spectrum** toggle.
+**Reverb**, **Output** (built-in synth or a Web MIDI port), and a **Spectrum** toggle.
 
 ---
 
@@ -145,15 +159,17 @@ exactly like the pins on a music-box cylinder passing the comb.
 - Requires the **Web Audio API** (standard in all modern browsers).
 - Browsers require **one user gesture before audio** — that's why the first click/"Start" button
   exists. Nothing else is needed.
+- **Web MIDI output** needs a browser that exposes the Web MIDI API: desktop **Chrome / Edge** (with a
+  USB‑MIDI interface or device), or **Bluefy** on iOS. Safari and Firefox don't expose Web MIDI yet,
+  so they fall back to the built-in synth — everything else still works.
 
 ---
 
-## Roadmap / ideas
+## Roadmap
 
-- **Web MIDI output** — optionally send notes back out to a DAW/hardware, bringing true MIDI to the
-  web build for musicians who want it.
 - **Save / Load patterns** — export to JSON or a shareable URL (the Python app has Ctrl+S/Ctrl+O).
 - **More presets + a "Randomize"** for endless instant variety.
+- **MIDI input / clock sync** — react to an external keyboard or sync to a DAW's tempo.
 - **Hosted demo** via GitHub Pages so it's one click, no download.
 
 ---
@@ -161,7 +177,10 @@ exactly like the pins on a music-box cylinder passing the comb.
 ## Credits & license
 
 Original concept, design, and Python application by **[Benn Jordan](https://www.patreon.com/bennjordan)**.
-The web edition is an additive companion — **the original Python app is untouched.**
+
+Web edition (this build) — port, built-in synth, spectrum, presets, onboarding, and Web MIDI — by
+**Karl Meves / [ERRERLabs](https://github.com/kmay89)**. It's an additive companion: **the original
+Python app is untouched.**
 
 Released, like the original, under **[CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.en)**:
 free to use, share, and modify **with attribution**, **non-commercial**.
