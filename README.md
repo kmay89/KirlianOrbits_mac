@@ -5,10 +5,12 @@
 
 ---
 
-## ⚡ NEW: Web Edition — open it in a browser, zero setup → **[`kirlian_orbits_web.html`](kirlian_orbits_web.html)**
+## ⚡ NEW: Web Edition — runs in your browser, zero setup
+
+### ▶ **[Play it now — live demo](https://kmay89.github.io/KirlianOrbits_mac/)** &nbsp;·&nbsp; or open **[`kirlian_orbits_web.html`](kirlian_orbits_web.html)** locally
 
 A single self-contained HTML file that reimplements the "spinning notes" engine in the
-browser. **No install, no Python, no MIDI rig required** — double-click it and it plays a song.
+browser. **No install, no Python, no MIDI rig required** — click the link above and it plays a song.
 Runs anywhere a modern browser does: **macOS, Windows, Linux, even phones/tablets.**
 *(This repo is named `…_mac` because the web build is what unblocks Mac users — but it's
 web-first and Mac-**compatible**, not Mac-only.)*
