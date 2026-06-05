@@ -1,0 +1,59 @@
+name: Deploy Web Edition to GitHub Pages
+
+# Publishes kirlian_orbits_web.html to GitHub Pages so there's a one-click,
+# no-download live demo. Runs automatically whenever the web app changes on
+# main, and can be triggered by hand from the Actions tab.
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - kirlian_orbits_web.html
+      - .github/workflows/deploy-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; newer pushes supersede in-flight runs.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Auto-enables Pages for the repo (no manual Settings toggle needed).
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # Serve the app at the site ROOT (index.html) — no redirect, no flash.
+      # Keep the original filename available too so existing links still work.
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp kirlian_orbits_web.html _site/index.html
+          cp kirlian_orbits_web.html _site/kirlian_orbits_web.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

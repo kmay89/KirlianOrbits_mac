@@ -111,11 +111,14 @@ A grouped menu so anyone hears something gorgeous immediately:
 
 ## Quick start
 
-**Just open it.** Double-click `kirlian_orbits_web.html` (or drag it into a browser tab). Press
-**▶ Start & Play**. That's it.
+**▶ Live demo (no download): <https://kmay89.github.io/KirlianOrbits_mac/>** — click and press
+**Start & Play**.
 
-*Want a shareable link instead of a download?* It's a static file, so any static host works — e.g.
-**GitHub Pages**: enable Pages on this repo and link straight to the file.
+Prefer local? Double-click `kirlian_orbits_web.html` (or drag it into a browser tab). That's it.
+
+> The live demo is published automatically by a GitHub Actions workflow
+> ([`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)) on every push to
+> `main` that touches the app — the page root serves the app directly.
 
 ### Controls & keyboard legend
 
@@ -170,7 +173,8 @@ exactly like the pins on a music-box cylinder passing the comb.
 - **Save / Load patterns** — export to JSON or a shareable URL (the Python app has Ctrl+S/Ctrl+O).
 - **More presets + a "Randomize"** for endless instant variety.
 - **MIDI input / clock sync** — react to an external keyboard or sync to a DAW's tempo.
-- **Hosted demo** via GitHub Pages so it's one click, no download.
+
+*(Done: **hosted one-click demo** via GitHub Pages — see [Quick start](#quick-start).)*
 
 ---
 
