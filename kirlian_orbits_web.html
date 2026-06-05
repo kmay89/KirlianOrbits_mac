@@ -277,6 +277,7 @@ class SynthEngine {
   init() {
     if (this.ready) return;
     const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) { console.warn("Web Audio API is not supported in this browser."); return; }
     this.ctx = new Ctx();
 
     this.master = this.ctx.createGain();
@@ -372,13 +373,16 @@ class SynthEngine {
     filt.connect(vca);
     vca.connect(this.master);
 
-    // ADSR
+    // ADSR — clamp attack/decay inside very short gates so envelope
+    // events stay strictly chronological (out-of-order scheduling pops).
     const peakGain = 0.28 * vel;
     const atk = 0.006, dec = 0.09, sus = peakGain * 0.6;
     vca.gain.cancelScheduledValues(t);
     vca.gain.setValueAtTime(0, t);
-    vca.gain.linearRampToValueAtTime(peakGain, t + atk);
-    vca.gain.linearRampToValueAtTime(sus, t + atk + dec);
+    const atkTime = Math.min(atk, g * 0.1);
+    const decTime = Math.min(atk + dec, g * 0.9);
+    vca.gain.linearRampToValueAtTime(peakGain, t + atkTime);
+    vca.gain.linearRampToValueAtTime(sus, t + decTime);
     const rel = 0.18;
     vca.gain.setValueAtTime(Math.max(sus, 0.0001), t + g);
     vca.gain.exponentialRampToValueAtTime(0.0001, t + g + rel);
@@ -503,7 +507,7 @@ class Sequencer {
     const omegaBase = (Math.PI * this.bpm) / 120; // one rotation = 4 beats
     if (this.spinning) {
       this.prevSweep = this.sweepAngle;
-      this.sweepAngle = (this.sweepAngle + this.dir * omegaBase * dt) % TWO_PI;
+      this.sweepAngle = ((this.sweepAngle + this.dir * omegaBase * dt) % TWO_PI + TWO_PI) % TWO_PI;
     }
     const ptsCurr = this.bezierPoints(this.sweepAngle);
     const ptsPrev = this.bezierPoints(this.prevSweep);
@@ -827,6 +831,7 @@ function render(now) {
       const x = cx + vr*Math.sin(n.polarAngle), y = cy - vr*Math.cos(n.polarAngle);
       if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
     });
+    ctx.closePath();
     ctx.stroke();
     ctx.restore();
   }
@@ -836,9 +841,15 @@ function render(now) {
     const vr = n.normR * R;
     const x = cx + vr*Math.sin(n.polarAngle), y = cy - vr*Math.cos(n.polarAngle);
     const rad = n.radius;
-    // corona
+    // corona — layered concentric rings (cheaper than shadowBlur on Retina,
+    // and mirrors the Python original's discharge-aura approach).
     ctx.save();
-    ctx.shadowColor = "#50fa7b"; ctx.shadowBlur = 14 + n.flash * 34;
+    for (let layer = 4; layer > 0; layer--) {
+      const layerR = rad + layer * 3 + n.flash * 8;
+      const alpha = (0.1 + n.flash * 0.3) / layer;
+      ctx.fillStyle = `rgba(80, 250, 123, ${alpha})`;
+      ctx.beginPath(); ctx.arc(x, y, layerR, 0, TWO_PI); ctx.fill();
+    }
     const fill = `rgba(${10 + n.flash*70}, ${30 + n.flash*120}, ${20 + n.flash*60}, 1)`;
     ctx.fillStyle = fill;
     ctx.beginPath(); ctx.arc(x, y, rad, 0, TWO_PI); ctx.fill();
