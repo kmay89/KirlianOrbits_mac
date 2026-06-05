@@ -82,6 +82,13 @@ Two orientation aids so it's obvious what's happening:
   view of which pitches are firing and what a chord looks like on the keys. **Click a key** to
   audition that pitch. Toggle either with the **Grid** / **Keys** buttons (or `G` / `K`).
 
+### 💾 Save · Load · Share · Randomize
+- **Share** copies a link that encodes the *entire* pattern in the URL — open it and the exact
+  pattern loads and plays. Great for sending an idea to someone.
+- **Save / Load** download and re-open a pattern as a small `.json` file.
+- **Randomize** (`R`) drops a fresh, in-key generative pattern (random scale, radii, and clock
+  divisors) so there's always a good starting point.
+
 ### 🎛️ Faithful engine port
 Everything that makes the original tick, re-implemented on HTML5 Canvas:
 - The spinning **cubic-Bézier sweep arm** (warp it by dragging its handles).
@@ -146,6 +153,9 @@ Prefer local? Double-click `index.html` (or drag it into a browser tab). That's 
 | Deselect / close editor | **`Esc`**, or click outside the ring |
 | Delete selected note | **`Del` / `Backspace`** |
 | Clear everything | **`C`**, or the Clear button |
+| Random pattern | **`R`**, or the 🎲 Random button |
+| Share a pattern as a link | the **🔗 Share** button (copies a URL that reproduces it) |
+| Save / Load a pattern (`.json`) | the **Save** / **Load** buttons |
 | Toggle the meter grid | **`G`**, or the Grid button |
 | Toggle the piano keyboard | **`K`**, or the Keys button |
 | Audition a pitch | **Click a key** on the bottom keyboard |
@@ -187,9 +197,8 @@ notes spiral.
 
 ## Roadmap
 
-- **Save / Load patterns** — export to JSON or a shareable URL (the Python app has Ctrl+S/Ctrl+O).
-- **More presets + a "Randomize"** for endless instant variety.
 - **MIDI input / clock sync** — react to an external keyboard or sync to a DAW's tempo.
+- **More starter songs / Music Box tunes.**
 
 *(Done: **hosted one-click demo** via GitHub Pages — see [Quick start](#quick-start).)*
 

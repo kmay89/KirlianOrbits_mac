@@ -30,6 +30,8 @@ one click — and **it can still send real MIDI** to your DAW/hardware in Chrome
   constellation** that shows what a chord looks like as it sounds.
 - 🎵 **One-click Starter Songs** — generative *Soundscapes* plus a **Music Box** of famous
   public-domain tunes (Twinkle Twinkle, Ode to Joy, Für Elise, Greensleeves).
+- 💾 **Save / Load / Share / Randomize** — share a link that reproduces your exact pattern, or roll a fresh in-key one with **`R`**.
+- 🎼 **Meter grid + piano keyboard** — beat spokes show where to click; the bottom keyboard lights up on every trigger (click a key to audition).
 - 👋 **Welcome + tips** that explain it to musicians *and* total beginners, with a keyboard legend.
 - 🎛️ Faithful port of the orbital model (Bézier sweep arm, BPM-%/divisor orbits, the original
   relative-polar collision math, 22 scales, key selection, Kirlian neon look).
