@@ -471,10 +471,11 @@ class Sequencer {
       if (inScale(n.midi)) continue;
       let best = n.midi;
       for (let d = 1; d <= 6; d++) {
-        if (inScale(n.midi - d)) { best = n.midi - d; break; }
-        if (inScale(n.midi + d)) { best = n.midi + d; break; }
+        const down = n.midi - d, up = n.midi + d;
+        if (down >= 0 && inScale(down)) { best = down; break; }
+        if (up <= 127 && inScale(up)) { best = up; break; }
       }
-      n.midi = clamp(best, 0, 127);
+      n.midi = best;
     }
   }
   remove(n) { const i = this.notes.indexOf(n); if (i >= 0) this.notes.splice(i,1); }
@@ -782,7 +783,7 @@ function loadPreset(name) {
   }
   selectNote(null);
 }
-presetSel.onchange = e => { if (e.target.value) { beginIfNeeded(); loadPreset(e.target.value); setPlay(true); } };
+presetSel.onchange = e => { if (e.target.value) { beginIfNeeded(); loadPreset(e.target.value); setPlay(true); e.target.value = ""; } };
 
 /* ── Keyboard ──────────────────────────────────────────────────────── */
 window.addEventListener("keydown", e => {
@@ -848,11 +849,10 @@ function drawSpectrum() {
 
     if (v > 0.012) {
       const outer = inner + v * bloom;
-      const grad = ctx.createLinearGradient(ca*inner, sa*inner, ca*outer, sa*outer);
-      grad.addColorStop(0,    `hsla(${hue},90%,60%,0)`);
-      grad.addColorStop(0.35, `hsla(${hue},95%,62%,0.5)`);
-      grad.addColorStop(1,    `hsla(${(hue+30)%360},100%,74%,0.95)`);
-      ctx.strokeStyle = grad; ctx.lineWidth = w;
+      // solid alpha-scaled stroke — avoids allocating a gradient per bar
+      // per frame (160 × 60fps of GC churn); 'lighter' keeps it glowing.
+      ctx.strokeStyle = `hsla(${hue}, 96%, 66%, ${0.18 + v * 0.78})`;
+      ctx.lineWidth = w;
       ctx.beginPath(); ctx.moveTo(ca*inner, sa*inner); ctx.lineTo(ca*outer, sa*outer); ctx.stroke();
       // soft inward reflection toward the core
       const rin = inner - v * bloom * 0.45;
