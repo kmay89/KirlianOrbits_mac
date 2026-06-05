@@ -1,0 +1,13 @@
+# Python build/run artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# PyInstaller output
+build/
+dist/
+*.spec
+
+# OS cruft
+.DS_Store
