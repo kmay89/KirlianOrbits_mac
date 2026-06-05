@@ -210,6 +210,8 @@
       <select id="outSel"><option value="synth">🔊 Built-in Synth</option></select>
     </div>
     <button id="specBtn" class="btn toggle on">SPECTRUM</button>
+    <button id="gridBtn" class="btn toggle on">GRID</button>
+    <button id="keysBtn" class="btn toggle on">KEYS</button>
     <button id="helpBtn" class="helpbtn" title="How it works">?</button>
   </div>
 
@@ -242,7 +244,7 @@
   </div>
 
   <div id="hint">
-    <kbd>Space</kbd> play · <kbd>1</kbd>–<kbd>9</kbd> songs · <b>Click</b> ring to add · Drag notes &amp; handles · <kbd>S</kbd> spin · <kbd>?</kbd> help
+    <kbd>Space</kbd> play · <kbd>1</kbd>–<kbd>9</kbd> songs · <b>Click</b> ring to add (spokes = beats) · click the keys to play · <kbd>?</kbd> help
   </div>
   <div id="credit">
     Original by <a href="https://www.patreon.com/bennjordan" target="_blank" rel="noopener">Benn Jordan</a> ·
@@ -286,6 +288,8 @@
       <span><kbd>Esc</kbd> deselect</span>
       <span><kbd>Del</kbd> delete note</span>
       <span><kbd>C</kbd> clear all</span>
+      <span><kbd>G</kbd> meter grid</span>
+      <span><kbd>K</kbd> keyboard</span>
       <span><kbd>?</kbd> this help</span>
     </div>
     <button class="cta">▶ Start &amp; Play</button>
@@ -358,6 +362,12 @@ function radiusForPitch(midi, key, scaleName) {
   for (let i = 0; i < ps.length; i++) { const d = Math.abs(ps[i] - midi); if (d < bd) { bd = d; bi = i; } }
   return bi / (ps.length - 1);                      // exact inverse of pitchAtRadius
 }
+
+// Bottom piano keyboard: spans the ring's pitch range (PITCH_LO..PITCH_HI).
+const WHITE_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);  // white-key pitch classes
+const PIANO_H = 76;                                  // keyboard strip height (px)
+const WHITE_KEYS = [];
+for (let m = PITCH_LO; m <= PITCH_HI; m++) if (WHITE_PCS.has(((m % 12) + 12) % 12)) WHITE_KEYS.push(m);
 
 /* ════════════════════════════════════════════════════════════════════
    AUDIO ENGINE — the part the original deliberately left to a DAW.
@@ -708,6 +718,8 @@ let W = 0, H = 0, DPR = 1;
 let center = [0,0], R = 250;
 let selected = null, dragNote = null, dragHandle = null;
 let curKey = 0, curScale = "Major", showSpectrum = true;
+let showGrid = true, showKeys = true;
+const keyFlash = {};   // midi -> 0..1 glow for manually-pressed piano keys
 
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -717,9 +729,16 @@ function resize() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   // Layout is independent of the editor panel, so the orbit never jumps
   // when the panel slides in/out (the panel simply overlays the canvas).
-  center = [W / 2, H / 2 + 28];
-  R = Math.max(120, Math.min(W/2 - 90, (H - 160)/2 - 30));
+  // Reserve the top bar and (when shown) the bottom keyboard strip.
+  const topBar = 110, bottom = showKeys ? PIANO_H + 8 : 24;
+  center = [W / 2, topBar + (H - topBar - bottom) / 2];
+  R = Math.max(110, Math.min(W/2 - 90, (H - topBar - bottom) / 2 - 20));
   seq.R = R;
+  // Keep the bottom hint/credit just above the keyboard.
+  const hb = (showKeys ? PIANO_H + 8 : 10) + "px";
+  el("hint").style.bottom = hb;
+  el("credit").style.bottom = hb;
+  el("tips").style.bottom = (showKeys ? PIANO_H + 14 : 42) + "px";
 }
 window.addEventListener("resize", resize);
 
@@ -732,6 +751,12 @@ cv.addEventListener("mousedown", e => {
   if (e.button !== 0) return;
   const [mx, my] = localPos(e);
   if (my < 64) return; // top bar zone
+  // Bottom piano: click a key to audition that pitch.
+  if (showKeys && my > H - PIANO_H) {
+    const m = pianoKeyAt(mx, my);
+    if (m != null) { beginIfNeeded(); out.noteOn(m, 110, 0.35); keyFlash[m] = 1; }
+    return;
+  }
   const rx = mx - center[0], ry = my - center[1];
 
   // 1. sweep-arm handles (rotated when spinning)
@@ -839,6 +864,8 @@ function updateDirBtn() { el("dirBtn").textContent = "DIR: " + (seq.dir === 1 ? 
 el("spinBtn").onclick = () => { seq.spinning = !seq.spinning; if (!seq.spinning) seq.sweepAngle = 0; updateSpinBtn(); };
 el("dirBtn").onclick = () => { seq.dir = -seq.dir; updateDirBtn(); };
 el("specBtn").onclick = e => { showSpectrum = !showSpectrum; e.target.classList.toggle("on", showSpectrum); };
+el("gridBtn").onclick = e => { showGrid = !showGrid; e.target.classList.toggle("on", showGrid); };
+el("keysBtn").onclick = e => { showKeys = !showKeys; e.target.classList.toggle("on", showKeys); resize(); };
 el("waveSel").onchange = e => synth.waveform = e.target.value;
 el("reverb").oninput = e => synth.setReverb(+e.target.value / 100);
 function setTempo(v) { seq.bpm = clamp(Math.round(v), 20, 300); el("bpm").value = seq.bpm; el("bpmVal").textContent = seq.bpm; }
@@ -989,6 +1016,8 @@ window.addEventListener("keydown", e => {
   else if (e.code === "BracketLeft")  { setTempo(seq.bpm - 4); }
   else if (e.code === "BracketRight") { setTempo(seq.bpm + 4); }
   else if (e.key === "?" || e.key === "h" || e.key === "H") { startOverlay.classList.remove("hidden"); }
+  else if (e.key === "g" || e.key === "G") { el("gridBtn").click(); }
+  else if (e.key === "k" || e.key === "K") { el("keysBtn").click(); }
   else if (e.code.startsWith("Digit")) {
     const idx = parseInt(e.code.slice(5), 10) - 1;            // 1-9 → preset index
     const names = Object.keys(PRESETS);
@@ -1084,9 +1113,89 @@ function drawSpectrum() {
   ctx.restore();
 }
 
+/* ── Meter grid: clock = one 4/4 bar (4 beats). Spokes mark the beats and
+   faint ticks mark 16th notes, so you can see roughly where to click. ── */
+function drawGrid() {
+  if (!showGrid) return;
+  const [cx, cy] = center, beats = 4, subs = 4;
+  ctx.save();
+  for (let i = 0; i < beats * subs; i++) {
+    if (i % subs === 0) continue;                 // beat spokes drawn separately
+    const a = (i / (beats * subs)) * TWO_PI - Math.PI / 2;
+    ctx.strokeStyle = "rgba(120,130,160,0.16)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * R * 0.88, cy + Math.sin(a) * R * 0.88);
+    ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+    ctx.stroke();
+  }
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (let b = 0; b < beats; b++) {
+    const a = (b / beats) * TWO_PI - Math.PI / 2;
+    ctx.strokeStyle = "rgba(189,147,249,0.20)"; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * R * 0.10, cy + Math.sin(a) * R * 0.10);
+    ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(189,147,249,0.55)"; ctx.font = "bold 12px sans-serif";
+    ctx.fillText(String(b + 1), cx + Math.cos(a) * R * 0.2, cy + Math.sin(a) * R * 0.2);
+  }
+  ctx.restore();
+}
+
+// Which piano key is under a point in the bottom strip (black keys first).
+function pianoKeyAt(mx, my) {
+  const y0 = H - PIANO_H;
+  if (my < y0) return null;
+  const ww = W / WHITE_KEYS.length;
+  if (my < y0 + PIANO_H * 0.6) {
+    for (let m = PITCH_LO; m <= PITCH_HI; m++) {
+      if (WHITE_PCS.has(((m % 12) + 12) % 12)) continue;
+      const wb = WHITE_KEYS.indexOf(m - 1); if (wb < 0) continue;
+      const x = (wb + 1) * ww - ww * 0.3, bw = ww * 0.6;
+      if (mx >= x && mx <= x + bw) return m;
+    }
+  }
+  return WHITE_KEYS[clamp(Math.floor(mx / ww), 0, WHITE_KEYS.length - 1)];
+}
+
+/* ── Bottom piano keyboard: a familiar view of which pitches are firing.
+   Keys glow (emerald) as notes trigger, and clicking one auditions it. ── */
+function drawPiano() {
+  if (!showKeys) return;
+  const y0 = H - PIANO_H, ww = W / WHITE_KEYS.length;
+  const lit = {};
+  for (const n of seq.notes) if (n.flash > 0.04) lit[n.midi] = Math.max(lit[n.midi] || 0, n.flash);
+  for (const m in keyFlash) if (keyFlash[m] > 0.04) lit[m] = Math.max(lit[m] || 0, keyFlash[m]);
+
+  ctx.fillStyle = "rgba(14,15,22,0.95)"; ctx.fillRect(0, y0, W, PIANO_H);
+  ctx.strokeStyle = "#2d3041"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, y0 + 0.5); ctx.lineTo(W, y0 + 0.5); ctx.stroke();
+
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  WHITE_KEYS.forEach((m, i) => {
+    const x = i * ww, f = lit[m] || 0;
+    ctx.fillStyle = f > 0 ? `rgba(80,250,123,${0.3 + 0.7 * f})` : "#dfe2ea";
+    ctx.fillRect(x + 0.5, y0 + 1, ww - 1, PIANO_H - 2);
+    ctx.strokeStyle = "#0a0b10"; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y0 + 1, ww - 1, PIANO_H - 2);
+    if (((m % 12) + 12) % 12 === 0) {
+      ctx.fillStyle = f > 0 ? "#06210f" : "#8b949e"; ctx.font = "9px sans-serif";
+      ctx.fillText("C" + (Math.floor(m / 12) - 1), x + ww / 2, y0 + PIANO_H - 5);
+    }
+  });
+  for (let m = PITCH_LO; m <= PITCH_HI; m++) {
+    if (WHITE_PCS.has(((m % 12) + 12) % 12)) continue;
+    const wb = WHITE_KEYS.indexOf(m - 1); if (wb < 0) continue;
+    const x = (wb + 1) * ww - ww * 0.3, bw = ww * 0.6, bh = PIANO_H * 0.6, f = lit[m] || 0;
+    ctx.fillStyle = f > 0 ? `rgba(60,230,110,${0.55 + 0.45 * f})` : "#15161d";
+    ctx.fillRect(x, y0 + 1, bw, bh);
+    ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.strokeRect(x, y0 + 1, bw, bh);
+  }
+}
+
 function render(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  for (const m in keyFlash) { keyFlash[m] -= dt * 3; if (keyFlash[m] <= 0) delete keyFlash[m]; }
 
   seq.update(dt, out);
 
@@ -1113,6 +1222,9 @@ function render(now) {
     ctx.beginPath(); ctx.arc(cx, cy, n.normR * R, 0, TWO_PI); ctx.stroke();
   }
   ctx.restore();
+
+  // meter grid (beat spokes + 16th ticks)
+  drawGrid();
 
   // glowing pink clock ring
   ctx.save();
@@ -1217,6 +1329,9 @@ function render(now) {
     ctx.font = "11px Segoe UI, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(n.name, x, y);
   }
+
+  // bottom piano keyboard (lights up on each trigger)
+  drawPiano();
 
   requestAnimationFrame(render);
 }
