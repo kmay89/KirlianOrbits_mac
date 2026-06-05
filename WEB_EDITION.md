@@ -116,9 +116,10 @@ A grouped menu so anyone hears something gorgeous immediately:
 
 Prefer local? Double-click `kirlian_orbits_web.html` (or drag it into a browser tab). That's it.
 
-> The live demo is published automatically by a GitHub Actions workflow
-> ([`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)) on every push to
-> `main` that touches the app — the page root serves the app directly.
+> **Hosting it yourself (one-time, ~15s):** GitHub → **Settings → Pages → Build and deployment →
+> Source: _Deploy from a branch_ → Branch: `main` / `/ (root)` → Save.** The repo root has an
+> `index.html` that forwards to the app, so `https://<user>.github.io/<repo>/` just works. This
+> branch-based path needs no special token permissions — GitHub creates and serves the site for you.
 
 ### Controls & keyboard legend
 
