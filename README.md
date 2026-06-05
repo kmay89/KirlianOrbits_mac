@@ -3,6 +3,36 @@
 
 ![App Screenshot](https://github.com/bennjordan/KirlianOrbits_win64/blob/main/korbits.png?raw=true)
 
+---
+
+## ⚡ NEW: Web Edition (runs on Mac with zero setup) — `kirlian_orbits_web.html`
+
+The original is a Python/pygame app that **transmits MIDI** — meaning on a Mac you
+hear nothing until you wire up a virtual MIDI cable plus a DAW/soft-synth. To make
+the "spinning notes" idea instantly playable on any machine, this fork adds a single
+**self-contained HTML file** that reimplements the engine in the browser:
+
+- **Just double-click `kirlian_orbits_web.html`** — no Python, no pip, no MIDI setup.
+- **Built-in Web Audio synthesizer** (4 voices: Kirlian Pluck, Super Saw, FM Bell, Pure Sine
+  + a generated reverb), so it makes sound on its own.
+- **Live radial spectrum analyzer** wrapped around the orbit ring — you literally
+  *spin a spectrum*, and chords **bloom visually** as they sound (a "chord constellation"
+  links notes that fire together).
+- Faithful port of the orbital model: spinning cubic-Bezier sweep arm, concentric
+  orbits with BPM-% / clock-divisor speeds, the original frame-rate-independent
+  relative-polar collision math, 22 scales, key selection, and the Kirlian neon aesthetic.
+
+Controls: **Space** play/pause · **Click** the ring to add a note · drag notes and the
+sweep-arm handles · **Del** removes the selected note · **C** clears.
+
+> Credit & original concept: **Benn Jordan**. Released, like the original, under
+> [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.en) — free to use,
+> share and modify with attribution, non-commercial.
+
+The original Python app below is unchanged.
+
+---
+
 
 While DJing last week and staring at the spinning discs of a Rane System One, I started making plans with myself to put neon stickers on the discs, then use webcams to translate the detection of neon colors into MIDI events to use as a sequencer. Then I decided that such an activity would be a lot of work for a solid 7 minutes of enjoyment, and I'd be better served just making a program that can do it in a much more functional, customizable, and accessible way. 
 
