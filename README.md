@@ -1,6 +1,18 @@
 
 # Kirlian Orbits
 
+> **A note for [Benn Jordan](https://github.com/bennjordan) & anyone browsing this repository —**
+> this adds a **zero-setup Web Edition** of Kirlian Orbits: one self-contained `index.html` with a
+> **built-in synth**, so the spinning-notes idea plays in any browser (especially **Mac**, where the
+> original has no synth to talk to) with **no Python, MIDI, or DAW**. It auto-plays a song on load,
+> includes famous public-domain "music box" tunes, a live spectrum, a piano keyboard, and one-click
+> **share links**. **Your original Python app is untouched**, you're credited throughout, and it
+> stays **CC BY-NC 4.0**.
+> &nbsp;&nbsp;▶ **[Live demo](https://kmay89.github.io/KirlianOrbits_mac/)** &nbsp;·&nbsp;
+> 📖 **[what it adds & why](WEB_EDITION.md)**
+>
+> *Web edition by Karl Meves / ERRERLabs.*
+
 ![App Screenshot](https://github.com/bennjordan/KirlianOrbits_win64/blob/main/korbits.png?raw=true)
 
 ---
