@@ -1,7 +1,7 @@
 
 # Kirlian Orbits
 
-> **A note for [Benn Jordan](https://github.com/bennjordan) & anyone browsing this fork —**
+> **A note for [Benn Jordan](https://github.com/bennjordan) & anyone browsing this repository —**
 > this adds a **zero-setup Web Edition** of Kirlian Orbits: one self-contained `index.html` with a
 > **built-in synth**, so the spinning-notes idea plays in any browser (especially **Mac**, where the
 > original has no synth to talk to) with **no Python, MIDI, or DAW**. It auto-plays a song on load,
