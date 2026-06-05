@@ -337,6 +337,28 @@ const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 const midiToName = m => NOTE_NAMES[((m % 12)+12)%12] + (Math.floor(m/12) - 1);
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
 
+/* ── Radius ⇄ pitch: one shared mapping so the ring's radius always means
+   pitch. Used when adding notes, when dragging them, and when laying out
+   the Music Box melodies — so they're all consistent (outer = higher). */
+const PITCH_LO = 48, PITCH_HI = 84;   // 3 octaves spanned by the ring
+function scalePitchList(key, scaleName) {
+  const intervals = SCALES[scaleName] || SCALES["Chromatic"];
+  const out = [];
+  for (let p = PITCH_LO; p <= PITCH_HI; p++) if (intervals.includes((((p - key) % 12) + 12) % 12)) out.push(p);
+  return out.length ? out : [60];
+}
+function pitchAtRadius(normR, key, scaleName) {
+  const ps = scalePitchList(key, scaleName);
+  return ps[clamp(Math.round(normR * (ps.length - 1)), 0, ps.length - 1)];
+}
+function radiusForPitch(midi, key, scaleName) {
+  const ps = scalePitchList(key, scaleName);
+  if (ps.length < 2) return 0.5;
+  let bi = 0, bd = Infinity;                       // nearest in-scale pitch
+  for (let i = 0; i < ps.length; i++) { const d = Math.abs(ps[i] - midi); if (d < bd) { bd = d; bi = i; } }
+  return bi / (ps.length - 1);                      // exact inverse of pitchAtRadius
+}
+
 /* ════════════════════════════════════════════════════════════════════
    AUDIO ENGINE — the part the original deliberately left to a DAW.
    Polyphonic, per-voice ADSR + filter, with a generated reverb so a
@@ -514,13 +536,7 @@ class Sequencer {
     this.notes.push(mk(0.94, Math.PI*1.0,  72, 8)); // C5 outer, slowest
   }
   pitchFromRadius(normR, key, scaleName) {
-    const intervals = SCALES[scaleName] || SCALES["Chromatic"];
-    const lo = 36, hi = 96;
-    const inScale = [];
-    for (let p = lo; p <= hi; p++) if (intervals.includes((((p-key)%12)+12)%12)) inScale.push(p);
-    if (!inScale.length) return 60;
-    const idx = clamp(Math.round(normR * (inScale.length - 1)), 0, inScale.length - 1);
-    return inScale[idx];
+    return pitchAtRadius(normR, key, scaleName);
   }
   addNote(rx, ry, key, scaleName) {
     const dist = Math.hypot(rx, ry);
@@ -763,6 +779,9 @@ window.addEventListener("mousemove", e => {
     const dist = Math.hypot(rx, ry);
     dragNote.normR = clamp(dist / R, 0.05, 1);
     dragNote.polarAngle = (Math.atan2(ry, rx) + Math.PI/2 + TWO_PI) % TWO_PI;
+    // Radius means pitch: dragging in/out retunes the note (snapped to key);
+    // moving it purely around the ring keeps the pitch and just shifts phase.
+    dragNote.midi = pitchAtRadius(dragNote.normR, curKey, curScale);
     if (dragNote === selected) syncPanel();
   }
 });
@@ -855,9 +874,12 @@ scaleSel.onchange = e => { curScale = e.target.value; seq.requantize(curKey, cur
    at 12 o'clock reads each note as it orbits past (plays the tune in
    order, then loops). `box()` turns [midi, beat] pairs into that ring.
    ──────────────────────────────────────────────────────────────────── */
-const box = (arr, loopBeats, radius = 0.72, gate = 0.4) => {
+const box = (arr, loopBeats, key, scaleName, gate = 0.4) => {
   const beats = loopBeats || 1; // guard against a falsy/zero loop length
-  return arr.map(([midi, t]) => ({ r: radius, ang: 1 - t / beats, midi, speed: 100, gate }));
+  // angle = time position (reversed so the clockwise orbit reads forward),
+  // radius = pitch — so the melody's up-and-down contour is visible as the
+  // notes spiral, and it stays consistent with click-to-add and dragging.
+  return arr.map(([midi, t]) => ({ r: radiusForPitch(midi, key, scaleName), ang: 1 - t / beats, midi, speed: 100, gate }));
 };
 
 const PRESETS = {
@@ -909,16 +931,16 @@ const PRESETS = {
   // ── Music Box: famous public-domain melodies (spin off, fixed reader) ──
   "🎵 Twinkle, Twinkle": {
     group:"Music Box (famous tunes)", bpm:46, key:0, scale:"Major", wave:"bell", reverb:0.46, spin:false, straight:true,
-    notes: box([[60,0],[60,1],[67,2],[67,3],[69,4],[69,5],[67,6],[65,8],[65,9],[64,10],[64,11],[62,12],[62,13],[60,14]], 16) },
+    notes: box([[60,0],[60,1],[67,2],[67,3],[69,4],[69,5],[67,6],[65,8],[65,9],[64,10],[64,11],[62,12],[62,13],[60,14]], 16, 0, "Major") },
   "🎵 Ode to Joy": {
     group:"Music Box (famous tunes)", bpm:48, key:0, scale:"Major", wave:"bell", reverb:0.46, spin:false, straight:true,
-    notes: box([[64,0],[64,1],[65,2],[67,3],[67,4],[65,5],[64,6],[62,7],[60,8],[60,9],[62,10],[64,11],[64,12],[62,13],[62,14]], 16) },
+    notes: box([[64,0],[64,1],[65,2],[67,3],[67,4],[65,5],[64,6],[62,7],[60,8],[60,9],[62,10],[64,11],[64,12],[62,13],[62,14]], 16, 0, "Major") },
   "🎵 Für Elise": {
     group:"Music Box (famous tunes)", bpm:54, key:0, scale:"Chromatic", wave:"bell", reverb:0.44, spin:false, straight:true,
-    notes: box([[76,0],[75,1],[76,2],[75,3],[76,4],[71,5],[74,6],[72,7],[69,8],[60,10],[64,11],[69,12],[71,13],[64,15],[68,16],[71,17],[72,18]], 20) },
+    notes: box([[76,0],[75,1],[76,2],[75,3],[76,4],[71,5],[74,6],[72,7],[69,8],[60,10],[64,11],[69,12],[71,13],[64,15],[68,16],[71,17],[72,18]], 20, 0, "Chromatic") },
   "🎵 Greensleeves": {
     group:"Music Box (famous tunes)", bpm:44, key:9, scale:"Minor", wave:"bell", reverb:0.48, spin:false, straight:true,
-    notes: box([[57,0],[60,1],[62,2],[64,3],[65,4],[64,5],[62,6],[59,7],[55,8],[57,9],[59,10],[57,11],[57,12]], 14) },
+    notes: box([[57,0],[60,1],[62,2],[64,3],[65,4],[64,5],[62,6],[59,7],[55,8],[57,9],[59,10],[57,11],[57,12]], 14, 9, "Minor") },
 };
 const STRAIGHT_ARM = [[0,-0.30],[0,-0.65],[0,-1.00]];
 const CURVED_ARM   = [[0.17,-0.30],[0.11,-0.66],[0,-1.00]];
