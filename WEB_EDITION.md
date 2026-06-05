@@ -74,6 +74,14 @@ The original's whole job — sending MIDI — is here too, now optional:
   in MIDI mode.
 - No Web MIDI support? The menu simply shows the built-in synth and everything still works.
 
+### 🎼 Meter grid + piano keyboard
+Two orientation aids so it's obvious what's happening:
+- A **meter grid** overlays the ring — the circle is one **4/4 bar**, with **beat spokes** (numbered
+  1–4) and faint **16th-note ticks**, so you can see roughly where to click to land on a beat.
+- A **piano keyboard** along the bottom **lights up (emerald) as each note triggers** — a familiar
+  view of which pitches are firing and what a chord looks like on the keys. **Click a key** to
+  audition that pitch. Toggle either with the **Grid** / **Keys** buttons (or `G` / `K`).
+
 ### 🎛️ Faithful engine port
 Everything that makes the original tick, re-implemented on HTML5 Canvas:
 - The spinning **cubic-Bézier sweep arm** (warp it by dragging its handles).
@@ -137,10 +145,13 @@ Prefer local? Double-click `kirlian_orbits_web.html` (or drag it into a browser 
 | Deselect / close editor | **`Esc`**, or click outside the ring |
 | Delete selected note | **`Del` / `Backspace`** |
 | Clear everything | **`C`**, or the Clear button |
+| Toggle the meter grid | **`G`**, or the Grid button |
+| Toggle the piano keyboard | **`K`**, or the Keys button |
+| Audition a pitch | **Click a key** on the bottom keyboard |
 | Help / how it works | **`?`** (or **`H`**), or the `?` button — reopens the welcome |
 
 Top bar also has: **Tempo**, **Spin** on/off, **Direction** (CW/CCW), **Key**, **Scale**, **Voice**,
-**Reverb**, **Output** (built-in synth or a Web MIDI port), and a **Spectrum** toggle.
+**Reverb**, **Output** (built-in synth or a Web MIDI port), and **Spectrum** / **Grid** / **Keys** toggles.
 
 ---
 
