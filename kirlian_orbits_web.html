@@ -768,8 +768,10 @@ scaleSel.onchange = e => { curScale = e.target.value; seq.requantize(curKey, cur
    at 12 o'clock reads each note as it orbits past (plays the tune in
    order, then loops). `box()` turns [midi, beat] pairs into that ring.
    ──────────────────────────────────────────────────────────────────── */
-const box = (arr, loopBeats, radius = 0.72, gate = 0.4) =>
-  arr.map(([midi, t]) => ({ r: radius, ang: 1 - t / loopBeats, midi, speed: 100, gate }));
+const box = (arr, loopBeats, radius = 0.72, gate = 0.4) => {
+  const beats = loopBeats || 1; // guard against a falsy/zero loop length
+  return arr.map(([midi, t]) => ({ r: radius, ang: 1 - t / beats, midi, speed: 100, gate }));
+};
 
 const PRESETS = {
   "✨ Kirlian Bloom": {
@@ -843,6 +845,7 @@ Object.keys(presetGroups).forEach(g => {
 });
 function loadPreset(name) {
   const p = PRESETS[name]; if (!p) return;
+  presetSel.value = name;   // keep the dropdown in sync (incl. programmatic loads)
   seq.notes = [];
   seq.bpm = p.bpm; el("bpm").value = p.bpm; el("bpmVal").textContent = p.bpm;
   curKey = p.key; keySel.value = p.key;
@@ -885,7 +888,8 @@ function beginIfNeeded() {            // idempotent: dismiss overlay + wake audi
   startOverlay.classList.add("hidden");
   synth.init(); synth.resume();
 }
-startOverlay.addEventListener("click", () => {
+startOverlay.addEventListener("click", (e) => {
+  if (e.target.closest(".col")) return;   // let users read/select the text columns
   const first = !started;
   beginIfNeeded();
   startOverlay.classList.add("hidden");
